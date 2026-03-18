@@ -1,0 +1,17 @@
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local database (SQLite)
+*.db
+*.sqlite3
+
+# Uvicorn / runtime
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

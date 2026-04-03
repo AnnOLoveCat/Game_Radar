@@ -1,5 +1,5 @@
-# Scholar_Radar
-論文追蹤系統
+# Game_Radar
+遊戲追蹤系統
 
 ## 1. Environment Setup (環境建置)
 

@@ -8,6 +8,12 @@ class TrackerCreate(BaseModel):
     schedule: str = Field(default="daily", max_length=20)
     is_enabled: bool = True
 
+class TrackerUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=200)
+    source: str | None = Field(default=None, max_length=50)
+    query_json: str | None = None
+    schedule: str | None = Field(default=None, max_length=20)
+    is_enabled: bool | None = None
 
 class TrackerOut(BaseModel):
     id: int
@@ -42,3 +48,17 @@ class RunResult(BaseModel):
     tracker_id: int
     inserted_games: int
     matched_games: int
+
+
+class RunOut(BaseModel):
+    id: int
+    tracker_id: int
+    started_at: datetime
+    ended_at: datetime | None
+    status: str
+    inserted_games: int
+    matched_games: int
+    error_message: str | None
+
+    class Config:
+        from_attributes = True

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import String, Boolean, DateTime, Text, ForeignKey, Integer
+from sqlalchemy import String, Boolean, DateTime, Text, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -35,9 +35,24 @@ class Game(Base):
 
 class GameMatch(Base):
     __tablename__ = "game_matches"
+    __table_args__ = (
+        UniqueConstraint("tracker_id", "game_id", name="uq_tracker_game_match"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     tracker_id: Mapped[int] = mapped_column(ForeignKey("trackers.id"), nullable=False)
     game_id: Mapped[int] = mapped_column(ForeignKey("games.id"), nullable=False)
     matched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     score: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+class Run(Base):
+    __tablename__ = "runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    tracker_id: Mapped[int] = mapped_column(ForeignKey("trackers.id"), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
+    inserted_games: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    matched_games: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

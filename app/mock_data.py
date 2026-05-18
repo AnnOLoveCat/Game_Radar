@@ -48,5 +48,25 @@ MOCK_GAMES = [
         "platform": "PC",
         "release_date": "TBA",
         "source": "mock"
-    }
+    },
+    {
+        "external_id": "mock-witcher-4",
+        "title": "The Witcher 4",
+        "studio": "CD Projekt Red",
+        "region": "poland",
+        "genre": "RPG",
+        "platform": "PC / PS5 / Xbox",
+        "release_date": "TBA",
+        "source": "mock"
+    },
+    {
+        "external_id": "mock-hades-2",
+        "title": "Hades II",
+        "studio": "Supergiant Games",
+        "region": "usa",
+        "genre": "Action Roguelike",
+        "platform": "PC",
+        "release_date": "2024-05-06",
+        "source": "mock"
+    },
 ]

@@ -1,3 +1,8 @@
+# ENV
+.env
+.env.*
+!.env.template
+
 # Virtual environment
 .venv/
 
@@ -14,4 +19,4 @@ __pycache__/
 
 # OS
 .DS_Store
-Thumbs.db
+scholar_radar.db

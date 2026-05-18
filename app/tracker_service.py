@@ -5,11 +5,38 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models import Tracker, Game, GameMatch, Run
-from app.mock_data import MOCK_GAMES
 from app.match_service import match_game
-
+from app.fetch_service import fetch_games_by_source
 
 def create_tracker_record(payload, db:Session):
+    try:
+        query = json.loads(payload.query_json)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid query_json format")
+
+    if not isinstance(query, dict):
+        raise HTTPException(status_code=400, detail="query_json must be a JSON object")
+
+    allowed_keys = {"regions", "games", "is_indie", "studios"}
+    unexpected_keys = set(query.keys()) - allowed_keys
+    if unexpected_keys:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported query_json keys: {sorted(unexpected_keys)}"
+        )
+
+    if "regions" in query and not isinstance(query["regions"], list):
+        raise HTTPException(status_code=400, detail="regions must be a list")
+
+    if "games" in query and not isinstance(query["games"], list):
+        raise HTTPException(status_code=400, detail="games must be a list")
+
+    if "studios" in query and not isinstance(query["studios"], list):
+        raise HTTPException(status_code=400, detail="studios must be a list")
+
+    if "is_indie" in query and not isinstance(query["is_indie"], bool):
+        raise HTTPException(status_code=400, detail="is_indie must be a boolean")
+
     tracker = Tracker(
         name=payload.name,
         source=payload.source,
@@ -41,8 +68,9 @@ def execute_tracker_run(tracker: Tracker, db: Session):
             run.error_message = "Invalid query_json format"
             db.commit()
             raise HTTPException(status_code=400, detail="Invalid query_json format")
-
-        for item in MOCK_GAMES:
+        
+        games_data = fetch_games_by_source(tracker.source, query)
+        for item in games_data:
             if not match_game(item, query):
                 continue
 

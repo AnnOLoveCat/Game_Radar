@@ -29,6 +29,7 @@ class Game(Base):
     genre: Mapped[str | None] = mapped_column(String(100), nullable=True)
     platform: Mapped[str | None] = mapped_column(String(100), nullable=True)
     release_date: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    latest_update_date: Mapped[str | None] = mapped_column(String(100), nullable=True)
     source: Mapped[str] = mapped_column(String(50), nullable=False, default="mock")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 

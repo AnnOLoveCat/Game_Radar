@@ -7,6 +7,7 @@ MOCK_GAMES = [
         "genre": "Action RPG",
         "platform": "PC / Mobile / PS5",
         "release_date": "2024-05-22",
+        "latest_update_date": None,
         "source": "mock"
     },
     {
@@ -17,6 +18,7 @@ MOCK_GAMES = [
         "genre": "RPG",
         "platform": "PC / Mobile",
         "release_date": "TBA",
+        "latest_update_date": None,
         "source": "mock"
     },
     {
@@ -27,6 +29,7 @@ MOCK_GAMES = [
         "genre": "Turn-based RPG",
         "platform": "PC / Mobile",
         "release_date": "2023-02-27",
+        "latest_update_date": None,
         "source": "mock"
     },
     {
@@ -37,6 +40,7 @@ MOCK_GAMES = [
         "genre": "Action RPG",
         "platform": "PC / PS / Xbox",
         "release_date": "2022-02-25",
+        "latest_update_date": None,
         "source": "mock"
     },
     {
@@ -47,6 +51,7 @@ MOCK_GAMES = [
         "genre": "Co-op Horror",
         "platform": "PC",
         "release_date": "TBA",
+        "latest_update_date": None,
         "source": "mock"
     },
     {
@@ -57,6 +62,7 @@ MOCK_GAMES = [
         "genre": "RPG",
         "platform": "PC / PS5 / Xbox",
         "release_date": "TBA",
+        "latest_update_date": None,
         "source": "mock"
     },
     {
@@ -67,6 +73,7 @@ MOCK_GAMES = [
         "genre": "Action Roguelike",
         "platform": "PC",
         "release_date": "2024-05-06",
+        "latest_update_date": None,
         "source": "mock"
     },
 ]

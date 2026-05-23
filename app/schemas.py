@@ -37,6 +37,7 @@ class GameOut(BaseModel):
     genre: str | None
     platform: str | None
     release_date: str | None
+    latest_update_date: str | None
     source: str
     created_at: datetime
 

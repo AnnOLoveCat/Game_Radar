@@ -64,6 +64,7 @@ def fetch_rawg_games(query: dict | None = None):
                 "genre": ", ".join([g["name"] for g in item.get("genres", [])]) or None,
                 "platform": " / ".join(platform_names) if platform_names else None,
                 "release_date": item.get("released"),
+                "latest_update_date": None,
                 "source": "rawg",
             }
         )

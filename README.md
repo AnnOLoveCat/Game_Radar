@@ -55,3 +55,12 @@ http://127.0.0.1:8000/health
 {"status":"ok"}
 ```
 這代表 FastAPI 有正常跑起來。
+
+### 測試1.2：更新欄位
+```bash
+alembic revision --autogenerate -m "add any reason to where..."
+
+alembic upgrade head
+```
+程式雖然已經知道你最新的欄位，但資料庫還不知道
+不做這一步時，run的時候會爆掉

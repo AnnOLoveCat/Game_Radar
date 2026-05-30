@@ -42,7 +42,7 @@ def create_tracker_record(payload, db:Session):
         source=payload.source,
         query_json=payload.query_json,
         schedule=payload.schedule,
-        is_enabled=payload.is_enabled,
+        is_active=payload.is_active,
     )
     db.add(tracker)
     db.commit()

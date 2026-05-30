@@ -6,14 +6,14 @@ class TrackerCreate(BaseModel):
     source: str = Field(default="mixed", max_length=50)
     query_json: str
     schedule: str = Field(default="daily", max_length=20)
-    is_enabled: bool = True
+    is_active: bool = True
 
 class TrackerUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=200)
     source: str | None = Field(default=None, max_length=50)
     query_json: str | None = None
     schedule: str | None = Field(default=None, max_length=20)
-    is_enabled: bool | None = None
+    is_active: bool | None = None
 
 class TrackerOut(BaseModel):
     id: int
@@ -21,7 +21,7 @@ class TrackerOut(BaseModel):
     source: str
     query_json: str
     schedule: str
-    is_enabled: bool
+    is_active: bool
     created_at: datetime
 
     class Config:

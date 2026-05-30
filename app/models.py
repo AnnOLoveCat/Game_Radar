@@ -14,7 +14,7 @@ class Tracker(Base):
     source: Mapped[str] = mapped_column(String(50), nullable=False, default="openalex")
     query_json: Mapped[str] = mapped_column(Text, nullable=False)
     schedule: Mapped[str] = mapped_column(String(20), nullable=False, default="daily")
-    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 

@@ -41,7 +41,7 @@ def create_tracker_record(payload, db:Session):
         name=payload.name,
         source=payload.source,
         query_json=payload.query_json,
-        schedule=payload.schedule,
+        update_frequency=payload.update_frequency,
         is_active=payload.is_active,
     )
     db.add(tracker)
@@ -171,3 +171,53 @@ def list_games_by_tracker(tracker_id: int, db: Session):
         .order_by(Game.id.desc())
         .all()
     )
+
+# 顯示遊戲的所有資訊
+def get_tracker_detail(tracker_id: int, db: Session):
+    return get_tracker_or_404(tracker_id, db)
+
+# 
+def list_active_trackers_by_frequency(update_frequency: str, db: Session):
+    return (
+        db.query(Tracker).filter(
+            Tracker.is_active == True,
+            Tracker.update_frequency == update_frequency
+        ).all()
+    )
+
+#
+def run_trackers_by_frequency(update_frequency: str, db: Session):
+    trackers = list_active_trackers_by_frequency(update_frequency, db)
+
+    results = []
+    for tracker in trackers:
+        try:
+            result = execute_tracker_run(tracker, db)
+            results.append({
+                "tracker_id": tracker.id,
+                "name": tracker.name,
+                "status": "success",
+                "inserted_games": result["inserted_games"],
+                "matched_games": result["matched_games"],
+                "error": None,
+            })
+        except HTTPException as e:
+            results.append({
+                "tracker_id": tracker.id,
+                "name": tracker.name,
+                "status": "failed",
+                "inserted_games": 0,
+                "matched_games": 0,
+                "error": e.detail,
+            })
+        except Exception as e:
+            results.append({
+                "tracker_id": tracker.id,
+                "name": tracker.name,
+                "status": "failed",
+                "inserted_games": 0,
+                "matched_games": 0,
+                "error": str(e),
+            })
+
+    return results

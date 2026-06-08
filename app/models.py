@@ -13,7 +13,7 @@ class Tracker(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     source: Mapped[str] = mapped_column(String(50), nullable=False, default="openalex")
     query_json: Mapped[str] = mapped_column(Text, nullable=False)
-    schedule: Mapped[str] = mapped_column(String(20), nullable=False, default="daily")
+    update_frequency: Mapped[str] = mapped_column(String(20), nullable=False, default="daily")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 

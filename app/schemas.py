@@ -1,26 +1,46 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 class TrackerCreate(BaseModel):
-    name: str = Field(..., max_length=200)
+    name: str = Field(default=None, max_length=200)
     source: str = Field(default="mixed", max_length=50)
     query_json: str
-    schedule: str = Field(default="daily", max_length=20)
+    update_frequency: str = Field(default="daily", max_length=20)
     is_active: bool = True
+
+    @field_validator("update_frequency")
+    @classmethod
+    def validate_update_frequency(cls, value: str) -> str:
+        allowed = {"daily", "weekly", "manual"}
+        value = value.strip().lower()
+        if value not in allowed:
+            raise ValueError(f"update_frequency must be one of {sorted(allowed)}")
+        return value
 
 class TrackerUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=200)
     source: str | None = Field(default=None, max_length=50)
     query_json: str | None = None
-    schedule: str | None = Field(default=None, max_length=20)
+    update_frequency: str | None = Field(default=None, max_length=20)
     is_active: bool | None = None
+
+    @field_validator("update_frequency")
+    @classmethod
+    def validate_update_frequency(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        allowed = {"daily", "weekly", "manual"}
+        value = value.strip().lower()
+        if value not in allowed:
+            raise ValueError(f"update_frequency must be one of {sorted(allowed)}")
+        return value
 
 class TrackerOut(BaseModel):
     id: int
     name: str
     source: str
     query_json: str
-    schedule: str
+    update_frequency: str
     is_active: bool
     created_at: datetime
 

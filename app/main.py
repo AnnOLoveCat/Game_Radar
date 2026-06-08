@@ -1,5 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
+from contextlib import asynccontextmanager
+from apscheduler.schedulers.background import BackgroundScheduler
+from app.db import SessionLocal
 
 from app.db import get_db
 from app.models import Tracker, Game, GameMatch, Run
@@ -15,9 +18,46 @@ from app.tracker_service import (
     list_all_games,
     list_runs_by_tracker,
     list_games_by_tracker,
+    get_tracker_detail,
+    run_trackers_by_frequency,
 )
 
-app = FastAPI(title="Game Radar", version="0.1.0")
+# app = FastAPI(title="Game Radar", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler.add_job(
+        run_daily_trackers,
+        "cron",
+        hour=9,
+        minute=0,
+        id="daily_trackers",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        run_weekly_trackers,
+        "cron",
+        day_of_week="mon",
+        hour=9,
+        minute=0,
+        id="weekly_trackers",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+    run_test_trackers,
+    "interval",
+    minutes=1,
+    id="test_daily_trackers",
+    replace_existing=True,
+    )
+    scheduler.start()
+    try:
+        yield
+    finally:
+        scheduler.shutdown()
+
+
+app = FastAPI(title="Game Radar", version="0.1.0", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -76,3 +116,38 @@ def update_tracker(tracker_id: int, payload: TrackerUpdate, db: Session = Depend
 @app.get("/v1/games", response_model=list[GameOut])
 def list_games(db: Session = Depends(get_db)):
     return list_all_games(db)
+
+@app.get("/v1/trackers/{tracker_id}", response_model=TrackerOut)
+def  get_tracker(tracker_id: int, db: Session = Depends(get_db)):
+    return get_tracker_detail(tracker_id, db)
+
+@app.post("/v1/trackers/run/{update_frequency}")
+def run_trackers_by_update_frequency(update_frequency: str, db: Session = Depends(get_db)):
+    return run_trackers_by_frequency(update_frequency, db)
+
+
+scheduler = BackgroundScheduler()
+
+def run_daily_trackers():
+    db = SessionLocal()
+    try:
+        run_trackers_by_frequency("daily", db)
+    finally:
+        db.close()
+
+
+def run_weekly_trackers():
+    db = SessionLocal()
+    try:
+        run_trackers_by_frequency("weekly", db)
+    finally:
+        db.close()
+
+# 測試
+def run_test_trackers():
+    db = SessionLocal()
+    try:
+        result = run_trackers_by_frequency("daily", db)
+        print("TEST SCHEDULER RESULT:", result)
+    finally:
+        db.close()

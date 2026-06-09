@@ -1,66 +1,534 @@
 # Game_Radar
-遊戲追蹤系統
 
-## 1. Environment Setup (環境建置)
+**遊戲資料收集與追蹤 API 專案**
 
-為了確保專案的獨立性與重現性，強烈建議使用 Python 虛擬環境 (`venv`) 進行開發。
+Game_Radar 是一個用來收集、追蹤、整理遊戲資料的後端 API 專案。  
+目前主要用途是：
 
-### 1.1 建立與啟動虛擬環境
+- 串接外部遊戲資料來源
+- 建立與管理 tracker（追蹤器）
+- 依條件手動或批次執行資料抓取
+- 將資料寫入資料庫
+- 提供 API 給未來的網站前端專案使用
 
-**Windows:**
-```bash
-# 建立名為 .venv 的虛擬環境
-python -m venv .venv
+未來網站專案會另外開發，但會直接使用本專案提供的 API 與資料。
 
-# 啟動虛擬環境
-.venv\Scripts\activate
+---
+
+# 目前已完成的功能
+
+- Tracker 建立 / 修改 / 刪除 / 查詢
+- 單筆 tracker 手動執行
+- 依 `update_frequency` 批次執行 tracker
+- `mock` 與 `rawg` 雙資料來源
+- `runs` 執行紀錄
+- `games` 遊戲資料查詢
+- APScheduler 自動排程執行
+- `latest_update_date` 欄位打通
+- `query_json` 新格式驗證
+
+---
+
+# 專案使用到的套件
+
+以下是目前程式中實際有用到的主要套件，以及它們在本專案中的用途。
+
+---
+
+## 1. FastAPI
+
+### 用途
+FastAPI 是本專案的 API 框架，用來建立後端服務與定義各種路由。
+
+### 在本專案中的使用
+- 建立 `/health`
+- 建立 `/v1/trackers`
+- 建立 `/v1/games`
+- 建立 `/v1/runs`
+- 建立批次執行 API
+
+### 常見寫法
+```python
+from fastapi import FastAPI, Depends, HTTPException
+
+app = FastAPI(title="Game Radar", version="0.1.0")
 ```
 
-**macOS / Linux:**
-```bash
-python3 -m venv .venv
-
-# 啟動虛擬環境
-source .venv/bin/activate
-```
-成功啟動後，您的終端機前方會出現 (.venv) 
-
-### 1.2 安裝必要套件
-在虛擬環境啟動的狀態下，安裝 YOLO 核心庫、標記工具與影像處理套件：
-```bash
-# 更新 pip
-python -m pip install --upgrade pip
-
-# 安裝 
-pip install 
+### 範例路由
+```python
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 ```
 
+---
 
-## 2. Open Server Test (啟動伺服器測試)
-在root資料夾寫
+## 2. Uvicorn
+
+### 用途
+Uvicorn 是 FastAPI 的 ASGI Server，用來啟動 API 服務。
+
+### 在本專案中的使用
+- 本機開發時啟動伺服器
+- 使用 `--reload` 自動重啟，方便開發
+
+### 啟動方式
 ```bash
 python -m uvicorn app.main:app --reload
 ```
 
-### 測試 1.1：先看健康檢查
+---
 
+## 3. SQLAlchemy
+
+### 用途
+SQLAlchemy 是 ORM（Object Relational Mapper），讓我們可以用 Python 操作資料庫，而不用一直手寫 SQL。
+
+### 在本專案中的使用
+- 定義資料表模型
+- 查詢 tracker / game / run
+- 寫入與更新資料
+- 建立 `Tracker`、`Game`、`GameMatch`、`Run`
+
+### 本專案目前主要資料表
+- `trackers`
+- `games`
+- `game_matches`
+- `runs`
+
+### 常見寫法
+```python
+tracker = db.query(Tracker).filter(Tracker.id == tracker_id).first()
+```
+
+---
+
+## 4. Alembic
+
+### 用途
+Alembic 是 SQLAlchemy 的 migration 工具，用來管理資料表結構變更。
+
+### 在本專案中的使用
+- 新增欄位
+- 修改欄位名稱
+- 同步 model 與資料庫 schema
+
+### 本專案實際用到的情境
+- 新增 `latest_update_date`
+- `is_enabled` 改成 `is_active`
+- `schedule` 改成 `update_frequency`
+
+### 常用指令
+```bash
+alembic revision --autogenerate -m "add latest_update_date to games"
+alembic upgrade head
+```
+
+### 注意事項
+如果 model 已經改了，但資料庫還沒 upgrade，執行 API 時很容易出現這類錯誤：
+
+```bash
+no such column
+table ... has no column named ...
+```
+
+---
+
+## 5. Pydantic
+
+### 用途
+Pydantic 用來定義 API 的輸入與輸出格式，並進行資料驗證。
+
+### 在本專案中的使用
+- 定義 `TrackerCreate`
+- 定義 `TrackerUpdate`
+- 定義 `TrackerOut`
+- 定義 `GameOut`
+- 定義 `RunResult`
+- 定義 `RunOut`
+
+### 本專案目前驗證重點
+- `query_json` 是否為合法 JSON 字串
+- `query_json` 是否符合目前格式
+- `update_frequency` 是否為合法值
+- request / response 欄位格式是否正確
+
+### 常見寫法
+```python
+from pydantic import BaseModel
+
+class TrackerCreate(BaseModel):
+    name: str
+    source: str
+```
+
+---
+
+## 6. APScheduler
+
+### 用途
+APScheduler 用來做定時任務，讓系統可以自動執行 tracker。
+
+### 在本專案中的使用
+- 每天自動跑 `daily`
+- 每週自動跑 `weekly`
+
+### 本專案的排程邏輯
+- `run_daily_trackers()`
+- `run_weekly_trackers()`
+
+### 常見寫法
+```python
+scheduler.add_job(run_daily_trackers, "cron", hour=9, minute=0)
+```
+
+---
+
+## 7. HTTPX
+
+### 用途
+HTTPX 用來發送 HTTP request，從外部 API 抓資料。
+
+### 在本專案中的使用
+- 串接 RAWG API
+- 取得真實遊戲資料
+- 依遊戲名稱搜尋資料
+
+### 本專案實際用途
+- `fetch_rawg_games()`
+- 透過 `search` 參數查詢遊戲
+- 把外部資料轉成目前 `Game` 可使用的格式
+
+### 常見寫法
+```python
+response = httpx.get(url, params=params, timeout=20.0)
+response.raise_for_status()
+data = response.json()
+```
+
+---
+
+## 8. python-dotenv
+
+### 用途
+python-dotenv 用來讀取 `.env` 檔案中的環境變數。
+
+### 在本專案中的使用
+- 讀取 `RAWG_API_KEY`
+- 避免把 API key 直接寫死在程式碼裡
+
+### 常見寫法
+```python
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+RAWG_API_KEY = os.getenv("RAWG_API_KEY")
+```
+
+---
+
+## 9. SQLite
+
+### 用途
+SQLite 是本專案目前開發階段使用的本地資料庫。
+
+### 在本專案中的使用
+- 儲存 tracker
+- 儲存 game
+- 儲存 run 紀錄
+- 快速驗證 side project 功能
+
+### 補充說明
+SQLite 不是 `pip install` 的 Python 套件，而是 Python 可直接搭配使用的本地資料庫。  
+本專案是透過 SQLAlchemy 操作 SQLite。
+
+### 目前資料庫檔案
+```bash
+scholar_radar.db
+```
+
+---
+
+# 專案目前資料結構概念
+
+## Tracker
+負責定義要追蹤什麼條件。
+
+目前主要欄位：
+- `name`
+- `source`
+- `query_json`
+- `update_frequency`
+- `is_active`
+
+---
+
+## Game
+負責儲存遊戲資料。
+
+目前主要欄位：
+- `external_id`
+- `title`
+- `studio`
+- `region`
+- `genre`
+- `platform`
+- `release_date`
+- `latest_update_date`
+- `source`
+
+---
+
+## Run
+負責記錄每一次 tracker 執行的結果。
+
+目前主要欄位：
+- `tracker_id`
+- `started_at`
+- `ended_at`
+- `status`
+- `inserted_games`
+- `matched_games`
+- `error_message`
+
+---
+
+# query_json 格式
+
+目前 `query_json` 使用新的 JSON 格式，不再使用舊的 `focus`。
+
+## 格式範例
+```json
+{
+  "regions": ["japan"],
+  "games": ["elden ring"],
+  "is_indie": false,
+  "studios": ["FromSoftware"]
+}
+```
+
+## 各欄位說明
+
+### `regions`
+代表遊戲的地區出處。  
+只做字串比對，不另外驗證是否為合法國家。
+
+### `games`
+代表遊戲名稱。  
+目前使用寬鬆比對。
+
+### `is_indie`
+代表是否為獨立開發遊戲。
+
+### `studios`
+代表開發商名稱。  
+目前使用寬鬆比對。
+
+---
+
+# Environment Setup（環境建置）
+
+為了確保專案的獨立性與可重現性，建議使用 Python 虛擬環境（`venv`）。
+
+## 1. 建立與啟動虛擬環境
+
+### Windows
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+```
+
+### macOS / Linux
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+成功啟動後，終端機前方會看到：
+
+```bash
+(.venv)
+```
+
+---
+
+## 2. 安裝必要套件
+
+先更新 pip：
+```bash
+python -m pip install --upgrade pip
+```
+
+再安裝目前專案需要的套件：
+```bash
+pip install fastapi uvicorn sqlalchemy alembic pydantic apscheduler httpx python-dotenv
+```
+
+如果你有 `requirements.txt`，也可以直接：
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+# 啟動伺服器測試
+
+在專案 root 資料夾執行：
+
+```bash
+python -m uvicorn app.main:app --reload
+```
+
+---
+
+# 基本測試
+
+## 1. 健康檢查
 打開瀏覽器輸入：
+
 ```bash
 http://127.0.0.1:8000/health
 ```
 
 如果成功，應該看到：
 
-```bash
+```json
 {"status":"ok"}
 ```
+
 這代表 FastAPI 有正常跑起來。
 
-### 測試1.2：更新欄位
-```bash
-alembic revision --autogenerate -m "add any reason to where..."
+---
 
+## 2. API 文件頁
+FastAPI 啟動後，可以打開：
+
+```bash
+http://127.0.0.1:8000/docs
+```
+
+直接測試所有 API。
+
+---
+
+## 3. 更新資料庫欄位
+如果 model 已改，但資料庫還沒同步，執行 API 很容易報錯。  
+這時要記得跑 migration：
+
+```bash
+alembic revision --autogenerate -m "describe your change"
 alembic upgrade head
 ```
-程式雖然已經知道你最新的欄位，但資料庫還不知道
-不做這一步時，run的時候會爆掉
+
+---
+
+# 常用 API
+
+## 建立 tracker
+```http
+POST /v1/trackers
+```
+
+### 範例 request body
+```json
+{
+  "name": "Japan Games Test",
+  "source": "mock",
+  "query_json": "{\"regions\":[\"japan\"],\"games\":[],\"is_indie\":false,\"studios\":[]}",
+  "update_frequency": "daily",
+  "is_active": true
+}
+```
+
+---
+
+## 執行單筆 tracker
+```http
+POST /v1/trackers/{tracker_id}/run
+```
+
+---
+
+## 批次執行指定頻率的 tracker
+```http
+POST /v1/trackers/run/{update_frequency}
+```
+
+例如：
+```http
+POST /v1/trackers/run/daily
+POST /v1/trackers/run/weekly
+```
+
+---
+
+## 查詢全部 trackers
+```http
+GET /v1/trackers
+```
+
+---
+
+## 查詢單一 tracker
+```http
+GET /v1/trackers/{tracker_id}
+```
+
+---
+
+## 查詢全部 games
+```http
+GET /v1/games
+```
+
+---
+
+## 查詢全部 runs
+```http
+GET /v1/runs
+```
+
+---
+
+## 查詢某一筆 tracker 的執行紀錄
+```http
+GET /v1/trackers/{tracker_id}/runs
+```
+
+---
+
+## 查詢某一筆 tracker 配對到的遊戲
+```http
+GET /v1/trackers/{tracker_id}/games
+```
+
+---
+
+# 開發紀錄提醒
+
+每次修改以下內容後，都建議檢查是否需要 migration：
+
+- `models.py`
+- 欄位新增 / 刪除 / 改名
+- 資料表 schema 變動
+
+每完成一個階段，也建議做一次 Git 更新，例如：
+
+```bash
+git status
+git add .
+git commit -m "your update message"
+git push
+```
+
+---
+
+# 未來擴充方向
+
+- 補更多真實遊戲資料來源
+- 補 `latest_update_date` 真實來源
+- 補 `publisher`、`description`、`official_url`
+- 增加更多 tracker 條件
+- 提供前端網站專案使用
+- 增加使用者評論與評分功能（網站專案）

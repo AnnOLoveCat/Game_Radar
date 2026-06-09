@@ -43,13 +43,6 @@ async def lifespan(app: FastAPI):
         id="weekly_trackers",
         replace_existing=True,
     )
-    scheduler.add_job(
-    run_test_trackers,
-    "interval",
-    minutes=1,
-    id="test_daily_trackers",
-    replace_existing=True,
-    )
     scheduler.start()
     try:
         yield
@@ -140,14 +133,5 @@ def run_weekly_trackers():
     db = SessionLocal()
     try:
         run_trackers_by_frequency("weekly", db)
-    finally:
-        db.close()
-
-# 測試
-def run_test_trackers():
-    db = SessionLocal()
-    try:
-        result = run_trackers_by_frequency("daily", db)
-        print("TEST SCHEDULER RESULT:", result)
     finally:
         db.close()

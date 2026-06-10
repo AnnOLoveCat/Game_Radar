@@ -172,11 +172,9 @@ def list_games_by_tracker(tracker_id: int, db: Session):
         .all()
     )
 
-# 顯示遊戲的所有資訊
 def get_tracker_detail(tracker_id: int, db: Session):
     return get_tracker_or_404(tracker_id, db)
 
-# 
 def list_active_trackers_by_frequency(update_frequency: str, db: Session):
     return (
         db.query(Tracker).filter(
@@ -185,7 +183,6 @@ def list_active_trackers_by_frequency(update_frequency: str, db: Session):
         ).all()
     )
 
-#
 def run_trackers_by_frequency(update_frequency: str, db: Session):
     trackers = list_active_trackers_by_frequency(update_frequency, db)
 
@@ -221,3 +218,25 @@ def run_trackers_by_frequency(update_frequency: str, db: Session):
             })
 
     return results
+
+def get_tracker_summary(tracker_id: int, db: Session):
+    tracker = get_tracker_or_404(tracker_id, db)
+
+    latest_run = (
+        db.query(Run)
+        .filter(Run.tracker_id == tracker_id)
+        .order_by(Run.id.desc())
+        .first()
+    )
+
+    matched_games_count = (
+        db.query(GameMatch)
+        .filter(GameMatch.tracker_id == tracker_id)
+        .count()
+    )
+
+    return {
+        "tracker": tracker,
+        "latest_run": latest_run,
+        "matched_games_count": matched_games_count,
+    }

@@ -21,6 +21,7 @@ from app.tracker_service import (
     get_tracker_detail,
     run_trackers_by_frequency,
     list_active_trackers_by_frequency,
+    get_tracker_summary
 )
 
 # app = FastAPI(title="Game Radar", version="0.1.0")
@@ -57,6 +58,36 @@ app = FastAPI(title="Game Radar", version="0.1.0", lifespan=lifespan)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/v1/scheduler/status")
+def get_scheduler_status():
+    jobs = scheduler.get_jobs()
+
+    return {
+        "scheduler_running": scheduler.running,
+        "job_count": len(jobs),
+        "jobs": [
+            {
+                "id": job.id,
+                "next_run_time": str(job.next_run_time) if job.next_run_time else None,
+                "trigger": str(job.trigger),
+            }
+            for job in jobs
+        ],
+
+        # jobs寫法等同下面
+        # job_list = []
+
+        # for job in jobs:
+        #     job_list.append(
+        #         {
+        #             "id": job.id,
+        #             "next_run_time": str(job.next_run_time) if job.next_run_time else None,
+        #             "trigger": str(job.trigger),
+        #         }
+        #     )
+    }
 
 
 @app.post("/v1/trackers", response_model=TrackerOut)
@@ -125,6 +156,33 @@ def list_active_trackers(update_frequency: str, db: Session = Depends(get_db)):
 @app.get("/v1/trackers/{tracker_id}", response_model=TrackerOut)
 def get_tracker(tracker_id: int, db: Session = Depends(get_db)):
     return get_tracker_detail(tracker_id, db)
+
+
+@app.get("/v1/trackers/{tracker_id}/summary")
+def get_tracker_summary_api(tracker_id: int, db: Session = Depends(get_db)):
+    summary = get_tracker_summary(tracker_id, db)
+
+    tracker = summary["tracker"]
+    latest_run = summary["latest_run"]
+
+    return {
+        "tracker_id": tracker.id,
+        "name": tracker.name,
+        "source": tracker.source,
+        "query_json": tracker.query_json,
+        "update_frequency": tracker.update_frequency,
+        "is_active": tracker.is_active,
+        "matched_games_count": summary["matched_games_count"],
+        "latest_run": {
+            "id": latest_run.id,
+            "status": latest_run.status,
+            "started_at": latest_run.started_at,
+            "ended_at": latest_run.ended_at,
+            "inserted_games": latest_run.inserted_games,
+            "matched_games": latest_run.matched_games,
+            "error_message": latest_run.error_message,
+        } if latest_run else None,
+    }
 
 
 scheduler = BackgroundScheduler()

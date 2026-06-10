@@ -20,6 +20,7 @@ from app.tracker_service import (
     list_games_by_tracker,
     get_tracker_detail,
     run_trackers_by_frequency,
+    list_active_trackers_by_frequency,
 )
 
 # app = FastAPI(title="Game Radar", version="0.1.0")
@@ -110,13 +111,20 @@ def update_tracker(tracker_id: int, payload: TrackerUpdate, db: Session = Depend
 def list_games(db: Session = Depends(get_db)):
     return list_all_games(db)
 
-@app.get("/v1/trackers/{tracker_id}", response_model=TrackerOut)
-def  get_tracker(tracker_id: int, db: Session = Depends(get_db)):
-    return get_tracker_detail(tracker_id, db)
 
 @app.post("/v1/trackers/run/{update_frequency}")
 def run_trackers_by_update_frequency(update_frequency: str, db: Session = Depends(get_db)):
     return run_trackers_by_frequency(update_frequency, db)
+
+
+@app.get("/v1/trackers/active/{update_frequency}", response_model=list[TrackerOut])
+def list_active_trackers(update_frequency: str, db: Session = Depends(get_db)):
+    return list_active_trackers_by_frequency(update_frequency, db)
+
+
+@app.get("/v1/trackers/{tracker_id}", response_model=TrackerOut)
+def get_tracker(tracker_id: int, db: Session = Depends(get_db)):
+    return get_tracker_detail(tracker_id, db)
 
 
 scheduler = BackgroundScheduler()

@@ -240,3 +240,53 @@ def get_tracker_summary(tracker_id: int, db: Session):
         "latest_run": latest_run,
         "matched_games_count": matched_games_count,
     }
+
+
+def get_dashboard_summary(db: Session):
+    tracker_count = db.query(Tracker).count()
+    active_tracker_count = db.query(Tracker).filter(Tracker.is_active == True).count()
+    game_count = db.query(Game).count()
+    run_count = db.query(Run).count()
+
+    latest_run = (
+        db.query(Run)
+        .order_by(Run.id.desc())
+        .first()
+    )
+
+    daily_active_count = (
+        db.query(Tracker)
+        .filter(
+            Tracker.is_active == True,
+            Tracker.update_frequency == "daily"
+        )
+        .count()
+    )
+
+    weekly_active_count = (
+        db.query(Tracker)
+        .filter(
+            Tracker.is_active == True,
+            Tracker.update_frequency == "weekly"
+        )
+        .count()
+    )
+
+    return {
+        "tracker_count": tracker_count,
+        "active_tracker_count": active_tracker_count,
+        "game_count": game_count,
+        "run_count": run_count,
+        "daily_active_count": daily_active_count,
+        "weekly_active_count": weekly_active_count,
+        "latest_run": {
+            "id": latest_run.id,
+            "tracker_id": latest_run.tracker_id,
+            "status": latest_run.status,
+            "started_at": latest_run.started_at,
+            "ended_at": latest_run.ended_at,
+            "inserted_games": latest_run.inserted_games,
+            "matched_games": latest_run.matched_games,
+            "error_message": latest_run.error_message,
+        } if latest_run else None,
+    }

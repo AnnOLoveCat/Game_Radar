@@ -313,3 +313,29 @@ def get_recent_runs(limit: int, db: Session):
         }
         for run in runs
     ]
+
+
+def get_recent_games(limit: int, db: Session):
+    games = (
+        db.query(Game)
+        .order_by(Game.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        {
+            "id": game.id,
+            "external_id": game.external_id,
+            "title": game.title,
+            "studio": game.studio,
+            "region": game.region,
+            "genre": game.genre,
+            "platform": game.platform,
+            "release_date": game.release_date,
+            "latest_update_date": game.latest_update_date,
+            "source": game.source,
+            "created_at": game.created_at,
+        }
+        for game in games
+    ]

@@ -290,3 +290,26 @@ def get_dashboard_summary(db: Session):
             "error_message": latest_run.error_message,
         } if latest_run else None,
     }
+
+
+def get_recent_runs(limit: int, db: Session):
+    runs = (
+        db.query(Run)
+        .order_by(Run.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        {
+            "id": run.id,
+            "tracker_id": run.tracker_id,
+            "status": run.status,
+            "started_at": run.started_at,
+            "ended_at": run.ended_at,
+            "inserted_games": run.inserted_games,
+            "matched_games": run.matched_games,
+            "error_message": run.error_message,
+        }
+        for run in runs
+    ]

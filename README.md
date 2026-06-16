@@ -441,69 +441,71 @@ POST /v1/trackers
 }
 ```
 
----
+# API 總表
 
-## 執行單筆 tracker
-```http
-POST /v1/trackers/{tracker_id}/run
-```
+## 1. System APIs
+- `GET /health`
+- `GET /v1/scheduler/status`
 
----
+## 2. Tracker APIs
+- `POST /v1/trackers`
+- `GET /v1/trackers`
+- `GET /v1/trackers/{tracker_id}`
+- `PATCH /v1/trackers/{tracker_id}`
+- `DELETE /v1/trackers/{tracker_id}`
+- `GET /v1/trackers/active/{update_frequency}`
 
-## 批次執行指定頻率的 tracker
-```http
-POST /v1/trackers/run/{update_frequency}
-```
+## 3. Run APIs
+- `POST /v1/trackers/{tracker_id}/run`
+- `POST /v1/trackers/run/{update_frequency}`
+- `GET /v1/runs`
+- `GET /v1/trackers/{tracker_id}/runs`
 
-例如：
-```http
-POST /v1/trackers/run/daily
-POST /v1/trackers/run/weekly
-```
+## 4. Game APIs
+- `GET /v1/games`
+- `GET /v1/trackers/{tracker_id}/games`
+- `GET /v1/trackers/{tracker_id}/summary`
 
----
-
-## 查詢全部 trackers
-```http
-GET /v1/trackers
-```
-
----
-
-## 查詢單一 tracker
-```http
-GET /v1/trackers/{tracker_id}
-```
+## 5. Dashboard APIs
+- `GET /v1/dashboard/summary`
+- `GET /v1/dashboard/recent-runs`
+- `GET /v1/dashboard/recent-games`
 
 ---
+# 最小操作流程
 
-## 查詢全部 games
-```http
-GET /v1/games
-```
+## 單筆 tracker 基本流程
+1. 建立 tracker：`POST /v1/trackers`
+2. 執行單筆 tracker：`POST /v1/trackers/{tracker_id}/run`
+3. 查看該 tracker 的執行紀錄：`GET /v1/trackers/{tracker_id}/runs`
+4. 查看該 tracker 配對到的遊戲：`GET /v1/trackers/{tracker_id}/games`
+5. 查看單筆 tracker 摘要：`GET /v1/trackers/{tracker_id}/summary`
 
+## 批次執行流程
+1. 建立多筆 tracker，並設定 `update_frequency`
+2. 執行指定頻率的 tracker：`POST /v1/trackers/run/{update_frequency}`
+3. 查詢 active tracker：`GET /v1/trackers/active/{update_frequency}`
+4. 查詢全部 run：`GET /v1/runs`
+5. 查詢 dashboard：`GET /v1/dashboard/summary`
 ---
 
-## 查詢全部 runs
-```http
-GET /v1/runs
-```
+---
+# 排程規則說明
 
+- `is_active = true`：此 tracker 會被納入批次執行
+- `is_active = false`：此 tracker 不會被批次執行
+- `update_frequency = daily`：每天自動執行
+- `update_frequency = weekly`：每週自動執行
+- `update_frequency = manual`：只手動執行，不進入自動排程
+
+目前排程器提供：
+- 每天固定時間執行 daily trackers
+- 每週固定時間執行 weekly trackers
+
+可透過以下 API 檢查排程器狀態：
+- `GET /v1/scheduler/status`
 ---
 
-## 查詢某一筆 tracker 的執行紀錄
-```http
-GET /v1/trackers/{tracker_id}/runs
-```
-
----
-
-## 查詢某一筆 tracker 配對到的遊戲
-```http
-GET /v1/trackers/{tracker_id}/games
-```
-
----
 
 # 開發紀錄提醒
 

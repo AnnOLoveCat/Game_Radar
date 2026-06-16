@@ -339,3 +339,26 @@ def get_recent_games(limit: int, db: Session):
         }
         for game in games
     ]
+
+
+def get_active_trackers(limit: int, db: Session):
+    trackers = (
+        db.query(Tracker)
+        .filter(Tracker.is_active == True)
+        .order_by(Tracker.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        {
+            "id": tracker.id,
+            "name": tracker.name,
+            "source": tracker.source,
+            "query_json": tracker.query_json,
+            "update_frequency": tracker.update_frequency,
+            "is_active": tracker.is_active,
+            "created_at": tracker.created_at,
+        }
+        for tracker in trackers
+    ]

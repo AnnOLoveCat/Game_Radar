@@ -24,7 +24,8 @@ from app.tracker_service import (
     get_tracker_summary,
     get_dashboard_summary,
     get_recent_runs,
-    get_recent_games
+    get_recent_games,
+    get_active_trackers,
 )
 
 # app = FastAPI(title="Game Radar", version="0.1.0")
@@ -202,6 +203,10 @@ def dashboard_recent_runs(limit: int = 5, db: Session = Depends(get_db)):
 def dashboard_recent_games(limit: int = 5, db: Session = Depends(get_db)):
     return get_recent_games(limit, db)
 
+
+@app.get("/v1/dashboard/active-trackers")
+def dashboard_active_trackers(limit: int = 10, db: Session = Depends(get_db)):
+    return get_active_trackers(limit, db)
 
 scheduler = BackgroundScheduler()
 

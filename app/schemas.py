@@ -1,12 +1,26 @@
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
+
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 class TrackerCreate(BaseModel):
-    name: str = Field(default=None, max_length=200)
-    source: str = Field(default="mixed", max_length=50)
-    query_json: str
-    update_frequency: str = Field(default="daily", max_length=20)
-    is_active: bool = True
+    name: str = Field(..., max_length=200, description="Tracker 名稱")
+    source: str = Field(default="mock", max_length=50, description="資料來源，例如 mock 或 rawg")
+    query_json: str = Field(..., description="追蹤條件 JSON 字串")
+    update_frequency: str = Field(default="daily", max_length=20, description="更新頻率：daily / weekly / manual")
+    is_active: bool = Field(default=True, description="是否啟用此 tracker")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "Games Test",
+                "source": "mock",
+                "query_json": "{\"regions\":[\"japan\"],\"games\":[],\"is_indie\":false,\"studios\":[]}",
+                "update_frequency": "daily",
+                "is_active": True
+            }
+        }
+    )
 
     @field_validator("update_frequency")
     @classmethod
@@ -16,13 +30,13 @@ class TrackerCreate(BaseModel):
         if value not in allowed:
             raise ValueError(f"update_frequency must be one of {sorted(allowed)}")
         return value
-
+    
 class TrackerUpdate(BaseModel):
-    name: str | None = Field(default=None, max_length=200)
-    source: str | None = Field(default=None, max_length=50)
-    query_json: str | None = None
-    update_frequency: str | None = Field(default=None, max_length=20)
-    is_active: bool | None = None
+    name: str | None = Field(default=None, max_length=200, description="Tracker 名稱")
+    source: str | None = Field(default=None, max_length=50, description="資料來源，例如 mock 或 rawg")
+    query_json: str | None = Field(default=None, description="追蹤條件 JSON 字串")
+    update_frequency: str | None = Field(default=None, max_length=20, description="更新頻率：daily / weekly / manual")
+    is_active: bool | None = Field(default=None, description="是否啟用此 tracker")
 
     @field_validator("update_frequency")
     @classmethod

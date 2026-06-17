@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -159,7 +159,7 @@ def delete_tracker(tracker_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/v1/trackers/{tracker_id}/run", response_model=RunResult, tags=["基礎使用"], summary="執行單筆 tracker")
-def run_tracker(tracker_id: int, db: Session = Depends(get_db)):
+def run_tracker(tracker_id: int = Path(..., description="要執行的 tracker ID"), db: Session = Depends(get_db)):
     tracker = get_tracker_or_404(tracker_id, db)
     return execute_tracker_run(tracker, db)
 
@@ -191,7 +191,7 @@ def list_tracker_games(tracker_id: int, db: Session = Depends(get_db)):
 # =========================
 
 @app.post("/v1/trackers/run/{update_frequency}", tags=["進階使用"], summary="批次執行指定頻率的 trackers")
-def run_trackers_by_update_frequency(update_frequency: str, db: Session = Depends(get_db)):
+def run_trackers_by_update_frequency(update_frequency: str = Path(..., description="批次執行頻率，例如 daily / weekly / manual"), db: Session = Depends(get_db)):
     return run_trackers_by_frequency(update_frequency, db)
 
 
@@ -237,12 +237,12 @@ def dashboard_summary(db: Session = Depends(get_db)):
 
 
 @app.get("/v1/dashboard/recent-runs", tags=["Dashboard"], summary="最近執行紀錄")
-def dashboard_recent_runs(limit: int = 5, db: Session = Depends(get_db)):
+def dashboard_recent_runs(limit: int = Query(5, ge=1, le=50, description="要回傳的最近 runs 筆數"), db: Session = Depends(get_db)):
     return get_recent_runs(limit, db)
 
 
 @app.get("/v1/dashboard/recent-games", tags=["Dashboard"], summary="最近新增遊戲")
-def dashboard_recent_games(limit: int = 5, db: Session = Depends(get_db)):
+def dashboard_recent_games(limit: int = Query(10, ge=1, le=100, description="要回傳的啟用中 tracker 筆數"), db: Session = Depends(get_db)):
     return get_recent_games(limit, db)
 
 

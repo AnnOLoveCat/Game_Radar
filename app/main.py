@@ -242,7 +242,7 @@ def dashboard_recent_runs(limit: int = Query(5, ge=1, le=50, description="要回
 
 
 @app.get("/v1/dashboard/recent-games", tags=["Dashboard"], summary="最近新增遊戲")
-def dashboard_recent_games(limit: int = Query(10, ge=1, le=100, description="要回傳的啟用中 game 筆數"), db: Session = Depends(get_db)):
+def dashboard_recent_games(limit: int = Query(10, ge=1, le=100, description="要回傳的最近的 games 筆數"), db: Session = Depends(get_db)):
     return get_recent_games(limit, db)
 
 

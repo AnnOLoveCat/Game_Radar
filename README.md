@@ -382,6 +382,10 @@ python -m pip install --upgrade pip
 ```bash
 pip install fastapi uvicorn sqlalchemy alembic pydantic apscheduler httpx python-dotenv
 ```
+把裝好的套件寫進requirements.txt
+```bash
+pip pip freeze > requirements.txt
+```
 
 如果你有 `requirements.txt`，也可以直接：
 ```bash

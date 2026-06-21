@@ -92,6 +92,32 @@ class TestApiBasic(unittest.TestCase):
         self.assertIn("game_count", data)
         self.assertIn("run_count", data)
 
+    def test_run_tracker(self):
+        payload = {
+            "name": "Pytest Run Tracker",
+            "source": "mock",
+            "query_json": "{\"regions\":[\"japan\"],\"games\":[],\"is_indie\":false,\"studios\":[]}",
+            "update_frequency": "daily",
+            "is_active": True,
+        }
+
+        create_response = self.client.post("/v1/trackers", json=payload)
+        self.assertEqual(create_response.status_code, 200)
+
+        tracker_data = create_response.json()
+        tracker_id = tracker_data.get("id")
+
+        self.assertIsNotNone(tracker_id)
+
+        run_response = self.client.post("/v1/trackers/{0}/run".format(tracker_id))
+        self.assertEqual(run_response.status_code, 200)
+
+        run_data = run_response.json()
+
+        self.assertEqual(run_data.get("tracker_id"), tracker_id)
+        self.assertIn("inserted_games", run_data)
+        self.assertIn("matched_games", run_data)
+
 
 if __name__ == "__main__":
     unittest.main()

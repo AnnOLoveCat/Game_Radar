@@ -263,7 +263,7 @@ SQLite 不是 `pip install` 的 Python 套件，而是 Python 可直接搭配使
 
 ### 目前資料庫檔案
 ```bash
-scholar_radar.db
+game_radar.db
 ```
 
 ---

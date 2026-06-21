@@ -19,4 +19,5 @@ __pycache__/
 
 # OS
 .DS_Store
-scholar_radar.db
+game_radar.db
+test_game_rader.db

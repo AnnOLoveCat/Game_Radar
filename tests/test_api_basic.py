@@ -1,16 +1,53 @@
+import os
 import unittest
 
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from app.main import app
+from app.db import get_db
+from app.models import Base
+
+
+TEST_DB_URL = "sqlite:///./test_game_radar.db"
+
+engine = create_engine(
+    TEST_DB_URL,
+    connect_args={"check_same_thread": False}
+)
+
+TestingSessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
+
+
+def override_get_db():
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 class TestApiBasic(unittest.TestCase):
-    
     @classmethod
-    # 先建立一個共用的 TestClient，避免每個測試都重建一次。
     def setUpClass(cls):
+        Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
+
+        app.dependency_overrides[get_db] = override_get_db
         cls.client = TestClient(app)
+
+    @classmethod
+    def tearDownClass(cls):
+        app.dependency_overrides.clear()
+        Base.metadata.drop_all(bind=engine)
+
+        if os.path.exists("test_scholar_radar.db"):
+            os.remove("test_scholar_radar.db")
 
     def test_health(self):
         response = self.client.get("/health")

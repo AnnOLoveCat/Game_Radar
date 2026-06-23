@@ -126,3 +126,9 @@ class DashboardSummaryOut(BaseModel):
     daily_active_count: int
     weekly_active_count: int
     latest_run: LatestRunSummary | None
+
+class DashboardActiveTrackerOut(BaseModel):
+    id: int
+    name: str
+    update_frequency: str
+    is_active: bool

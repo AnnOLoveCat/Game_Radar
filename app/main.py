@@ -6,7 +6,17 @@ from app.db import SessionLocal
 
 from app.db import get_db
 from app.models import Tracker, Game, GameMatch, Run
-from app.schemas import TrackerCreate, TrackerUpdate, TrackerOut, GameOut, RunResult, RunOut, TrackerSummaryOut, DashboardSummaryOut
+from app.schemas import (
+    TrackerCreate,
+    TrackerUpdate,
+    TrackerOut, 
+    GameOut, 
+    RunResult, 
+    RunOut, 
+    TrackerSummaryOut, 
+    DashboardSummaryOut,
+    DashboardActiveTrackerOut)
+
 from app.tracker_service import (
     create_tracker_record,
     execute_tracker_run,
@@ -236,16 +246,16 @@ def dashboard_summary(db: Session = Depends(get_db)):
     return get_dashboard_summary(db)
 
 
-@app.get("/v1/dashboard/recent-runs", tags=["Dashboard"], summary="最近執行紀錄")
+@app.get("/v1/dashboard/recent-runs",response_model=list[RunOut], tags=["Dashboard"], summary="最近執行紀錄")
 def dashboard_recent_runs(limit: int = Query(5, ge=1, le=50, description="要回傳的最近 runs 筆數"), db: Session = Depends(get_db)):
     return get_recent_runs(limit, db)
 
 
-@app.get("/v1/dashboard/recent-games", tags=["Dashboard"], summary="最近新增遊戲")
-def dashboard_recent_games(limit: int = Query(10, ge=1, le=100, description="要回傳的最近的 games 筆數"), db: Session = Depends(get_db)):
+@app.get("/v1/dashboard/recent-games", response_model=list[GameOut], tags=["Dashboard"], summary="最近新增遊戲")
+def dashboard_recent_games(limit: int = Query(10, ge=1, le=100, description="要回傳的最近 games 筆數"), db: Session = Depends(get_db)):
     return get_recent_games(limit, db)
 
 
-@app.get("/v1/dashboard/active-trackers", tags=["Dashboard"], summary="目前啟用中的 trackers")
+@app.get("/v1/dashboard/active-trackers", response_model=list[DashboardActiveTrackerOut],  tags=["Dashboard"], summary="目前啟用中的 trackers")
 def dashboard_active_trackers(limit: int = Query(10, ge=1, le=100, description="要回傳的啟用中 tracker 筆數"), db: Session = Depends(get_db)):
     return get_active_trackers(limit, db)

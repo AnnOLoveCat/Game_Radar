@@ -1,8 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
-
 class TrackerCreate(BaseModel):
     name: str = Field(..., max_length=200, description="Tracker 名稱")
     source: str = Field(default="mock", max_length=50, description="資料來源，例如 mock 或 rawg")

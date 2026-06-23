@@ -21,15 +21,7 @@ jobs:
         run: python -m pip install --upgrade pip
 
       - name: 安裝套件
-        run: |
-          pip install fastapi
-          pip install uvicorn
-          pip install sqlalchemy
-          pip install alembic
-          pip install pydantic
-          pip install apscheduler
-          pip install httpx
-          pip install python-dotenv
+        run: pip install -r requirements.txt
 
       - name: 執行單元測試
         run: python -m unittest discover -s tests

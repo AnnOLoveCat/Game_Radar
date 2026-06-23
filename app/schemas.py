@@ -97,3 +97,34 @@ class RunOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class LatestRunSummary(BaseModel):
+    id: int
+    status: str
+    started_at: datetime
+    ended_at: datetime | None
+    inserted_games: int
+    matched_games: int
+    error_message: str | None
+
+
+class TrackerSummaryOut(BaseModel):
+    tracker_id: int
+    name: str
+    source: str
+    query_json: str
+    update_frequency: str
+    is_active: bool
+    matched_games_count: int
+    latest_run: LatestRunSummary | None
+
+
+class DashboardSummaryOut(BaseModel):
+    tracker_count: int
+    active_tracker_count: int
+    game_count: int
+    run_count: int
+    daily_active_count: int
+    weekly_active_count: int
+    latest_run: LatestRunSummary | None

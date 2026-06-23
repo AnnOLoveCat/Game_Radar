@@ -6,7 +6,7 @@ from app.db import SessionLocal
 
 from app.db import get_db
 from app.models import Tracker, Game, GameMatch, Run
-from app.schemas import TrackerCreate, TrackerUpdate, TrackerOut, GameOut, RunResult, RunOut
+from app.schemas import TrackerCreate, TrackerUpdate, TrackerOut, GameOut, RunResult, RunOut, TrackerSummaryOut, DashboardSummaryOut
 from app.tracker_service import (
     create_tracker_record,
     execute_tracker_run,
@@ -200,7 +200,7 @@ def list_active_trackers(update_frequency: str, db: Session = Depends(get_db)):
     return list_active_trackers_by_frequency(update_frequency, db)
 
 
-@app.get("/v1/trackers/{tracker_id}/summary", tags=["進階使用"], summary="查詢單一 tracker 摘要")
+@app.get("/v1/trackers/{tracker_id}/summary", response_model=TrackerSummaryOut, tags=["進階使用"], summary="查詢單一 tracker 摘要")
 def get_tracker_summary_api(tracker_id: int, db: Session = Depends(get_db)):
     summary = get_tracker_summary(tracker_id, db)
 
@@ -231,7 +231,7 @@ def get_tracker_summary_api(tracker_id: int, db: Session = Depends(get_db)):
 # Dashboard APIs
 # =========================
 
-@app.get("/v1/dashboard/summary", tags=["Dashboard"], summary="Dashboard 總覽")
+@app.get("/v1/dashboard/summary", response_model=DashboardSummaryOut, tags=["Dashboard"], summary="Dashboard 總覽")
 def dashboard_summary(db: Session = Depends(get_db)):
     return get_dashboard_summary(db)
 

@@ -1,0 +1,34 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+
+# Git
+.git/
+.gitignore
+
+# Environment variables
+.env
+
+# SQLite databases
+*.db
+
+# Test files
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+game_radar.db
+test_game_rader.db

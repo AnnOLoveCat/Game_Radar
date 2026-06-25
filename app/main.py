@@ -15,7 +15,11 @@ from app.schemas import (
     RunOut, 
     TrackerSummaryOut, 
     DashboardSummaryOut,
-    DashboardActiveTrackerOut)
+    DashboardActiveTrackerOut,
+    SchedulerJobOut,
+    SchedulerStatusOut,
+    BatchRunResultOut,
+)
 
 from app.tracker_service import (
     create_tracker_record,
@@ -118,7 +122,12 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/v1/scheduler/status", tags=["System"], summary="查看排程器狀態")
+@app.get(
+    "/v1/scheduler/status",
+    response_model=SchedulerStatusOut,
+    tags=["System"],
+    summary="查看排程器狀態"
+)
 def get_scheduler_status():
     jobs = scheduler.get_jobs()
 
@@ -200,7 +209,12 @@ def list_tracker_games(tracker_id: int, db: Session = Depends(get_db)):
 # 進階使用
 # =========================
 
-@app.post("/v1/trackers/run/{update_frequency}", tags=["進階使用"], summary="批次執行指定頻率的 trackers")
+@app.post(
+    "/v1/trackers/run/{update_frequency}",
+    response_model=list[BatchRunResultOut],
+    tags=["進階使用"],
+    summary="批次執行指定頻率的 trackers"
+)
 def run_trackers_by_update_frequency(update_frequency: str = Path(..., description="批次執行頻率，例如 daily / weekly / manual"), db: Session = Depends(get_db)):
     return run_trackers_by_frequency(update_frequency, db)
 
@@ -256,6 +270,6 @@ def dashboard_recent_games(limit: int = Query(10, ge=1, le=100, description="要
     return get_recent_games(limit, db)
 
 
-@app.get("/v1/dashboard/active-trackers", response_model=list[DashboardActiveTrackerOut],  tags=["Dashboard"], summary="目前啟用中的 trackers")
+@app.get("/v1/dashboard/active-trackers", response_model=list[DashboardActiveTrackerOut], tags=["Dashboard"], summary="目前啟用中的 trackers")
 def dashboard_active_trackers(limit: int = Query(10, ge=1, le=100, description="要回傳的啟用中 tracker 筆數"), db: Session = Depends(get_db)):
     return get_active_trackers(limit, db)

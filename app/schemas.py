@@ -132,3 +132,22 @@ class DashboardActiveTrackerOut(BaseModel):
     name: str
     update_frequency: str
     is_active: bool
+
+class SchedulerJobOut(BaseModel):
+    id: str
+    next_run_time: str | None
+    trigger: str
+
+
+class SchedulerStatusOut(BaseModel):
+    scheduler_running: bool
+    job_count: int
+    jobs: list[SchedulerJobOut]
+
+class BatchRunResultOut(BaseModel):
+    tracker_id: int
+    name: str
+    status: str
+    inserted_games: int
+    matched_games: int
+    error: str | None

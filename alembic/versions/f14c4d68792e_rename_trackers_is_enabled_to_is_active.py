@@ -2,9 +2,9 @@
 
 Revision ID: f14c4d68792e
 Revises: fe7696ae8e8c
-Create Date: 2026-05-30 17:02:02.509351
-
+Create Date: 2026-05-30 15:28:31.355676
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,29 +12,20 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'f14c4d68792e'
-down_revision: Union[str, Sequence[str], None] = 'fe7696ae8e8c'
+revision: str = "f14c4d68792e"
+down_revision: Union[str, Sequence[str], None] = "fe7696ae8e8c"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    with op.batch_alter_table("trackers") as batch_op:
-        batch_op.add_column(sa.Column("is_active", sa.Boolean(), nullable=True))
-
-    op.execute("UPDATE trackers SET is_active = is_enabled")
-
-    with op.batch_alter_table("trackers") as batch_op:
-        batch_op.alter_column("is_active", nullable=False)
-        batch_op.drop_column("is_enabled")
+    """Upgrade schema."""
+    # 已由前一支 migration fe7696ae8e8c 完成 is_enabled -> is_active
+    # 這支保留 revision 鏈，但不再執行任何資料表變更
+    pass
 
 
 def downgrade() -> None:
-    with op.batch_alter_table("trackers") as batch_op:
-        batch_op.add_column(sa.Column("is_enabled", sa.Boolean(), nullable=True))
-
-    op.execute("UPDATE trackers SET is_enabled = is_active")
-
-    with op.batch_alter_table("trackers") as batch_op:
-        batch_op.alter_column("is_enabled", nullable=False)
-        batch_op.drop_column("is_active")
+    """Downgrade schema."""
+    # 對應 upgrade 為 no-op，這裡也保持 no-op
+    pass

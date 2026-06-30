@@ -1,3 +1,5 @@
+import json
+
 from typing import Any
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, ConfigDict
@@ -57,7 +59,7 @@ class TrackerCreate(BaseModel):
             raise ValueError(f"update_frequency must be one of {sorted(allowed)}")
         return value
     
-    
+
 class TrackerUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=200, description="Tracker 名稱")
     source: str | None = Field(default=None, max_length=50, description="資料來源，例如 mock 或 rawg")
@@ -84,13 +86,20 @@ class TrackerOut(BaseModel):
     id: int
     name: str
     source: str
-    query_json: str
+    query_json: dict[str, Any]
     update_frequency: str
     is_active: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("query_json", mode="before")
+    @classmethod
+    def parse_query_json(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
+
+        return value
 
 
 class GameOut(BaseModel):
@@ -144,11 +153,19 @@ class TrackerSummaryOut(BaseModel):
     tracker_id: int
     name: str
     source: str
-    query_json: str
+    query_json: dict[str, Any]
     update_frequency: str
     is_active: bool
     matched_games_count: int
     latest_run: LatestRunSummary | None
+
+    @field_validator("query_json", mode="before")
+    @classmethod
+    def parse_query_json(cls, value):
+        if isinstance(value, str):
+            return json.loads(value)
+
+        return value
 
 
 class DashboardSummaryOut(BaseModel):

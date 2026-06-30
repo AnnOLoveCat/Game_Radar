@@ -63,12 +63,11 @@ class TestApiBasic(unittest.TestCase):
         name,
         update_frequency="daily",
         is_active=True,
-        source="mock"
+        source="mock",
+        query_json=None
     ):
-        return {
-            "name": name,
-            "source": source,
-            "query_json": {
+        if query_json is None:
+            query_json = {
                 "target_game": {
                     "title": "Elden Ring",
                     "platform_hints": ["PC", "PlayStation", "Xbox"]
@@ -89,7 +88,12 @@ class TestApiBasic(unittest.TestCase):
                     "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
                     "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
                 }
-            },
+            }
+
+        return {
+            "name": name,
+            "source": source,
+            "query_json": query_json,
             "update_frequency": update_frequency,
             "is_active": is_active,
         }
@@ -99,17 +103,19 @@ class TestApiBasic(unittest.TestCase):
         name,
         update_frequency="daily",
         is_active=True,
-        source="mock"
+        source="mock",
+        query_json=None
     ):
         payload = self._build_tracker_payload(
             name=name,
             update_frequency=update_frequency,
             is_active=is_active,
-            source=source
+            source=source,
+            query_json=query_json
         )
 
         response = self.client.post("/v1/trackers", json=payload)
-        assert response.status_code == 200
+        assert response.status_code == 200, response.json()
 
         data = response.json()
         tracker_id = data.get("id")
@@ -121,7 +127,7 @@ class TestApiBasic(unittest.TestCase):
     def _run_tracker_once(self, tracker_id):
         response = self.client.post("/v1/trackers/{0}/run".format(tracker_id))
 
-        assert response.status_code == 200
+        assert response.status_code == 200, response.json()
 
         return response.json()
 
@@ -146,15 +152,10 @@ class TestApiBasic(unittest.TestCase):
 
         query_json = data.get("query_json")
 
-        # 因為資料庫目前還是 Text，所以回傳仍然會是 str
-        assert isinstance(query_json, str)
-
-        parsed_query = json.loads(query_json)
-
-        assert isinstance(parsed_query, dict)
-        assert "target_game" in parsed_query
-        assert "user_review" in parsed_query
-        assert parsed_query["target_game"]["title"] == "Elden Ring"
+        assert isinstance(query_json, dict)
+        assert "target_game" in query_json
+        assert "user_review" in query_json
+        assert query_json["target_game"]["title"] == "Elden Ring"
 
     def test_list_trackers(self):
         response = self.client.get("/v1/trackers")
@@ -207,6 +208,66 @@ class TestApiBasic(unittest.TestCase):
         self.assertIn("detail", data)
         self.assertEqual(data.get("detail"), "Tracker not found")
 
+    def test_get_tracker_returns_query_json_object(self):
+        tracker_id, _ = self._create_tracker("Pytest Get Tracker Query JSON")
+
+        response = self.client.get("/v1/trackers/{0}".format(tracker_id))
+
+        assert response.status_code == 200, response.json()
+
+        data = response.json()
+        query_json = data.get("query_json")
+
+        assert isinstance(query_json, dict)
+        assert "target_game" in query_json
+        assert query_json["target_game"]["title"] == "Elden Ring"
+        assert "user_review" in query_json
+
+    def test_update_tracker_query_json_object(self):
+        tracker_id, _ = self._create_tracker("Pytest Update Query JSON Tracker")
+
+        update_payload = {
+            "query_json": {
+                "target_game": {
+                    "title": "Hades II",
+                    "platform_hints": ["PC", "Steam"]
+                },
+                "sources_to_check": ["mock"],
+                "regions": ["usa"],
+                "genres": ["Action Roguelike"],
+                "platforms": ["PC"],
+                "user_review": {
+                    "has_played": True,
+                    "platform_played": "PC",
+                    "playtime_hours": 8,
+                    "is_recommended": True,
+                    "review_title": "節奏快，戰鬥爽感強",
+                    "review_text": "Hades II 的戰鬥節奏很快，角色成長和反覆挑戰的設計很適合喜歡 Roguelike 的玩家。",
+                    "pros": ["戰鬥節奏快", "角色成長明確"],
+                    "cons": ["需要反覆挑戰"],
+                    "suitable_for": ["喜歡 Roguelike 的玩家"],
+                    "not_suitable_for": ["不喜歡重複刷關的玩家"]
+                }
+            }
+        }
+
+        update_response = self.client.patch(
+            "/v1/trackers/{0}".format(tracker_id),
+            json=update_payload
+        )
+
+        assert update_response.status_code == 200, update_response.json()
+
+        updated_data = update_response.json()
+
+        assert updated_data.get("id") == tracker_id
+
+        query_json = updated_data.get("query_json")
+
+        assert isinstance(query_json, dict)
+        assert query_json["target_game"]["title"] == "Hades II"
+        assert "user_review" in query_json
+
     # =========================
     # Tracker Run Flow Tests
     # =========================
@@ -226,14 +287,21 @@ class TestApiBasic(unittest.TestCase):
         self._run_tracker_once(tracker_id)
 
         summary_response = self.client.get("/v1/trackers/{0}/summary".format(tracker_id))
-        self.assertEqual(summary_response.status_code, 200)
+
+        assert summary_response.status_code == 200, summary_response.json()
 
         summary_data = summary_response.json()
 
-        self.assertEqual(summary_data.get("tracker_id"), tracker_id)
-        self.assertEqual(summary_data.get("name"), "Pytest Summary Tracker")
-        self.assertIn("matched_games_count", summary_data)
-        self.assertIn("latest_run", summary_data)
+        assert summary_data.get("tracker_id") == tracker_id
+        assert summary_data.get("name") == "Pytest Summary Tracker"
+        assert "matched_games_count" in summary_data
+        assert "latest_run" in summary_data
+
+        query_json = summary_data.get("query_json")
+
+        assert isinstance(query_json, dict)
+        assert "target_game" in query_json
+        assert query_json["target_game"]["title"] == "Elden Ring"
 
     def test_tracker_runs_endpoint(self):
         tracker_id, _ = self._create_tracker("Pytest Tracker Runs Endpoint")

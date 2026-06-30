@@ -1,10 +1,11 @@
+from typing import Any
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 class TrackerCreate(BaseModel):
     name: str = Field(..., max_length=200, description="Tracker 名稱")
     source: str = Field(default="mock", max_length=50, description="資料來源，例如 mock 或 rawg")
-    query_json: str = Field(..., description="追蹤條件 JSON 字串")
+    query_json: dict[str, Any] = Field(..., description="追蹤條件 JSON 物件")
     update_frequency: str = Field(default="daily", max_length=20, description="更新頻率：daily / weekly / manual")
     is_active: bool = Field(default=True, description="是否啟用此 tracker")
 
@@ -13,9 +14,36 @@ class TrackerCreate(BaseModel):
             "example": {
                 "name": "Games Test",
                 "source": "mock",
-                "query_json": "{\"regions\":[\"japan\"],\"games\":[],\"is_indie\":false,\"studios\":[]}",
                 "update_frequency": "daily",
-                "is_active": True
+                "is_active": True,
+                "query_json": {
+                    "target_game": {
+                        "title": "Mixtape",
+                        "platform_hints": ["Steam", "PC", "Xbox"]
+                    },
+                    "sources_to_check": [
+                        "steam",
+                        "rawg",
+                        "igdb",
+                        "opencritic",
+                        "metacritic"
+                    ],
+                    "regions": ["japan", "asia", "global"],
+                    "genres": ["Adventure", "Indie", "Narrative"],
+                    "platforms": ["PC", "Steam", "Xbox"],
+                    "user_review": {
+                        "has_played": True,
+                        "platform_played": "Steam",
+                        "playtime_hours": 4,
+                        "is_recommended": False,
+                        "review_title": "美術和音樂不錯，但遊玩互動性不足",
+                        "review_text": "我覺得這款遊戲的音樂、美術和演出都不錯，但實際操作內容偏少，很多段落比較像互動電影。",
+                        "pros": ["音樂表現佳", "美術風格不錯"],
+                        "cons": ["實際操作內容偏少", "玩家控制感不足"],
+                        "suitable_for": ["喜歡劇情導向遊戲的玩家"],
+                        "not_suitable_for": ["重視操作感的玩家"]
+                    }
+                }
             }
         }
     )
@@ -29,10 +57,11 @@ class TrackerCreate(BaseModel):
             raise ValueError(f"update_frequency must be one of {sorted(allowed)}")
         return value
     
+    
 class TrackerUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=200, description="Tracker 名稱")
     source: str | None = Field(default=None, max_length=50, description="資料來源，例如 mock 或 rawg")
-    query_json: str | None = Field(default=None, description="追蹤條件 JSON 字串")
+    query_json: dict[str, Any] | None = Field(default=None, description="追蹤條件 JSON 物件")
     update_frequency: str | None = Field(default=None, max_length=20, description="更新頻率：daily / weekly / manual")
     is_active: bool | None = Field(default=None, description="是否啟用此 tracker")
 
@@ -41,11 +70,15 @@ class TrackerUpdate(BaseModel):
     def validate_update_frequency(cls, value: str | None) -> str | None:
         if value is None:
             return value
+
         allowed = {"daily", "weekly", "manual"}
         value = value.strip().lower()
+
         if value not in allowed:
             raise ValueError(f"update_frequency must be one of {sorted(allowed)}")
+
         return value
+    
 
 class TrackerOut(BaseModel):
     id: int

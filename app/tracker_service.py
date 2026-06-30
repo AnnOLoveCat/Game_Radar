@@ -8,16 +8,25 @@ from app.models import Tracker, Game, GameMatch, Run
 from app.match_service import match_game
 from app.fetch_service import fetch_games_by_source
 
-def create_tracker_record(payload, db:Session):
-    try:
-        query = json.loads(payload.query_json)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid query_json format")
 
+def validate_tracker_query_json(query: dict):
     if not isinstance(query, dict):
         raise HTTPException(status_code=400, detail="query_json must be a JSON object")
 
-    allowed_keys = {"regions", "games", "is_indie", "studios"}
+    allowed_keys = {
+        "target_game",
+        "sources_to_check",
+        "regions",
+        "genres",
+        "platforms",
+        "user_review",
+
+        # 保留舊格式相容
+        "games",
+        "is_indie",
+        "studios",
+    }
+
     unexpected_keys = set(query.keys()) - allowed_keys
     if unexpected_keys:
         raise HTTPException(
@@ -25,9 +34,25 @@ def create_tracker_record(payload, db:Session):
             detail=f"Unsupported query_json keys: {sorted(unexpected_keys)}"
         )
 
+    if "target_game" in query and not isinstance(query["target_game"], dict):
+        raise HTTPException(status_code=400, detail="target_game must be an object")
+
+    if "sources_to_check" in query and not isinstance(query["sources_to_check"], list):
+        raise HTTPException(status_code=400, detail="sources_to_check must be a list")
+
     if "regions" in query and not isinstance(query["regions"], list):
         raise HTTPException(status_code=400, detail="regions must be a list")
 
+    if "genres" in query and not isinstance(query["genres"], list):
+        raise HTTPException(status_code=400, detail="genres must be a list")
+
+    if "platforms" in query and not isinstance(query["platforms"], list):
+        raise HTTPException(status_code=400, detail="platforms must be a list")
+
+    if "user_review" in query and not isinstance(query["user_review"], dict):
+        raise HTTPException(status_code=400, detail="user_review must be an object")
+
+    # 舊格式相容
     if "games" in query and not isinstance(query["games"], list):
         raise HTTPException(status_code=400, detail="games must be a list")
 
@@ -37,13 +62,20 @@ def create_tracker_record(payload, db:Session):
     if "is_indie" in query and not isinstance(query["is_indie"], bool):
         raise HTTPException(status_code=400, detail="is_indie must be a boolean")
 
+
+def create_tracker_record(payload, db: Session):
+    query = payload.query_json
+
+    validate_tracker_query_json(query)
+
     tracker = Tracker(
         name=payload.name,
         source=payload.source,
-        query_json=payload.query_json,
+        query_json=json.dumps(query, ensure_ascii=False),
         update_frequency=payload.update_frequency,
         is_active=payload.is_active,
     )
+
     db.add(tracker)
     db.commit()
     db.refresh(tracker)
@@ -128,6 +160,11 @@ def delete_tracker_with_dependencies(tracker: Tracker, db: Session):
 
 
 def update_tracker_fields(tracker: Tracker, update_data: dict, db: Session):
+    if "query_json" in update_data:
+        query = update_data["query_json"]
+        validate_tracker_query_json(query)
+        update_data["query_json"] = json.dumps(query, ensure_ascii=False)
+
     for field, value in update_data.items():
         setattr(tracker, field, value)
 

@@ -26,13 +26,15 @@ def fetch_rawg_games(query: dict | None = None):
     }
     
     if query:
-        focus = query.get("focus")
+        target_game = query.get("target_game", {})
+        target_title = target_game.get("title")
 
-        if focus == "game":
-            games = query.get("games", [])
+        games = query.get("games", [])
 
-            if games:
-                params["search"] = games[0]
+        if target_title:
+            params["search"] = target_title
+        elif games:
+            params["search"] = games[0]
 
     try:
         response = httpx.get(url, params=params, timeout=20.0)

@@ -1,5 +1,4 @@
-import os
-import unittest
+import os, unittest, json
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -69,7 +68,28 @@ class TestApiBasic(unittest.TestCase):
         return {
             "name": name,
             "source": source,
-            "query_json": "{\"regions\":[\"japan\"],\"games\":[],\"is_indie\":false,\"studios\":[]}",
+            "query_json": {
+                "target_game": {
+                    "title": "Elden Ring",
+                    "platform_hints": ["PC", "PlayStation", "Xbox"]
+                },
+                "sources_to_check": ["mock"],
+                "regions": ["japan"],
+                "genres": ["Action RPG"],
+                "platforms": ["PC", "Xbox"],
+                "user_review": {
+                    "has_played": True,
+                    "platform_played": "PC",
+                    "playtime_hours": 40,
+                    "is_recommended": True,
+                    "review_title": "高難度但很有探索感",
+                    "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色，但新手一開始會比較容易挫折。",
+                    "pros": ["探索感強", "戰鬥有挑戰性", "世界觀完整"],
+                    "cons": ["新手門檻高", "部分 Boss 難度偏高"],
+                    "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
+                    "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
+                }
+            },
             "update_frequency": update_frequency,
             "is_active": is_active,
         }
@@ -89,18 +109,19 @@ class TestApiBasic(unittest.TestCase):
         )
 
         response = self.client.post("/v1/trackers", json=payload)
-        self.assertEqual(response.status_code, 200)
+        assert response.status_code == 200
 
         data = response.json()
         tracker_id = data.get("id")
 
-        self.assertIsNotNone(tracker_id)
+        assert tracker_id is not None
 
         return tracker_id, data
 
     def _run_tracker_once(self, tracker_id):
         response = self.client.post("/v1/trackers/{0}/run".format(tracker_id))
-        self.assertEqual(response.status_code, 200)
+
+        assert response.status_code == 200
 
         return response.json()
 
@@ -117,11 +138,23 @@ class TestApiBasic(unittest.TestCase):
     def test_create_tracker(self):
         tracker_id, data = self._create_tracker("Pytest Japan Tracker")
 
-        self.assertIsNotNone(tracker_id)
-        self.assertEqual(data.get("name"), "Pytest Japan Tracker")
-        self.assertEqual(data.get("source"), "mock")
-        self.assertEqual(data.get("update_frequency"), "daily")
-        self.assertTrue(data.get("is_active"))
+        assert tracker_id is not None
+        assert data.get("name") == "Pytest Japan Tracker"
+        assert data.get("source") == "mock"
+        assert data.get("update_frequency") == "daily"
+        assert data.get("is_active") is True
+
+        query_json = data.get("query_json")
+
+        # 因為資料庫目前還是 Text，所以回傳仍然會是 str
+        assert isinstance(query_json, str)
+
+        parsed_query = json.loads(query_json)
+
+        assert isinstance(parsed_query, dict)
+        assert "target_game" in parsed_query
+        assert "user_review" in parsed_query
+        assert parsed_query["target_game"]["title"] == "Elden Ring"
 
     def test_list_trackers(self):
         response = self.client.get("/v1/trackers")
@@ -146,14 +179,15 @@ class TestApiBasic(unittest.TestCase):
             "/v1/trackers/{0}".format(tracker_id),
             json=update_payload
         )
-        self.assertEqual(update_response.status_code, 200)
+
+        assert update_response.status_code == 200, update_response.json()
 
         updated_data = update_response.json()
 
-        self.assertEqual(updated_data.get("id"), tracker_id)
-        self.assertEqual(updated_data.get("name"), "Pytest Updated Tracker")
-        self.assertEqual(updated_data.get("update_frequency"), "weekly")
-        self.assertEqual(updated_data.get("is_active"), False)
+        assert updated_data.get("id") == tracker_id
+        assert updated_data.get("name") == "Pytest Updated Tracker"
+        assert updated_data.get("update_frequency") == "weekly"
+        assert updated_data.get("is_active") is False
 
     def test_delete_tracker(self):
         tracker_id, _ = self._create_tracker("Pytest Delete Tracker")
@@ -432,28 +466,55 @@ class TestApiBasic(unittest.TestCase):
         }
 
         response = self.client.post("/v1/trackers", json=payload)
-
-        self.assertEqual(response.status_code, 400)
+        assert response.status_code == 422
 
         data = response.json()
-        self.assertIn("detail", data)
-        self.assertEqual(data.get("detail"), "Invalid query_json format")
+        assert "detail" in data
 
     def test_create_tracker_invalid_update_frequency(self):
         payload = {
             "name": "Pytest Invalid Frequency",
             "source": "mock",
-            "query_json": "{\"regions\":[\"japan\"],\"games\":[],\"is_indie\":false,\"studios\":[]}",
+            "query_json": {
+                "target_game": {
+                    "title": "Elden Ring",
+                    "platform_hints": ["PC", "PlayStation", "Xbox"]
+                },
+                "sources_to_check": ["mock"],
+                "regions": ["japan"],
+                "genres": ["Action RPG"],
+                "platforms": ["PC", "Xbox"],
+                "user_review": {
+                    "has_played": True,
+                    "platform_played": "PC",
+                    "playtime_hours": 40,
+                    "is_recommended": True,
+                    "review_title": "高難度但很有探索感",
+                    "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色。",
+                    "pros": ["探索感強"],
+                    "cons": ["新手門檻高"],
+                    "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
+                    "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
+                }
+            },
             "update_frequency": "hourly",
             "is_active": True,
         }
 
         response = self.client.post("/v1/trackers", json=payload)
 
-        self.assertEqual(response.status_code, 422)
+        assert response.status_code == 422
 
         data = response.json()
-        self.assertIn("detail", data)
+
+        assert "detail" in data
+
+        error_locs = [
+            error.get("loc", [])
+            for error in data.get("detail", [])
+        ]
+
+        assert any("update_frequency" in loc for loc in error_locs)
 
     def test_scheduler_status(self):
         response = self.client.get("/v1/scheduler/status")

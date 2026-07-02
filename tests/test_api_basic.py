@@ -748,5 +748,44 @@ class TestApiBasic(unittest.TestCase):
         assert "detail" in data
         assert data.get("detail") == "regions must be a list"
 
+    def test_create_tracker_invalid_genres_type(self):
+        query_json = {
+            "target_game": {
+                "title": "Elden Ring",
+                "platform_hints": ["PC", "PlayStation", "Xbox"]
+            },
+            "sources_to_check": ["mock"],
+            "regions": ["japan"],
+            "genres": "Action RPG",
+            "platforms": ["PC", "Xbox"],
+            "user_review": {
+                "has_played": True,
+                "platform_played": "PC",
+                "playtime_hours": 40,
+                "is_recommended": True,
+                "review_title": "高難度但很有探索感",
+                "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色。",
+                "pros": ["探索感強"],
+                "cons": ["新手門檻高"],
+                "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
+                "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
+            }
+        }
+
+        payload = self._build_tracker_payload(
+            name="Pytest Invalid Genres Type",
+            query_json=query_json
+        )
+
+        response = self.client.post("/v1/trackers", json=payload)
+
+        assert response.status_code == 400, response.json()
+
+        data = response.json()
+
+        assert "detail" in data
+        assert data.get("detail") == "genres must be a list"
+
+
 if __name__ == "__main__":
     unittest.main()

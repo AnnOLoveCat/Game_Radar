@@ -847,5 +847,36 @@ class TestApiBasic(unittest.TestCase):
             expected_detail="games must be a list"
         )
 
+    def test_create_tracker_invalid_studios_type(self):
+        query_json = {
+            "target_game": {
+                "title": "Elden Ring",
+                "platform_hints": ["PC", "PlayStation", "Xbox"]
+            },
+            "sources_to_check": ["mock"],
+            "regions": ["japan"],
+            "genres": ["Action RPG"],
+            "platforms": ["PC", "Xbox"],
+            "studios": "FromSoftware",
+            "user_review": {
+                "has_played": True,
+                "platform_played": "PC",
+                "playtime_hours": 40,
+                "is_recommended": True,
+                "review_title": "高難度但很有探索感",
+                "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色。",
+                "pros": ["探索感強"],
+                "cons": ["新手門檻高"],
+                "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
+                "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
+            }
+        }
+
+        self._assert_create_tracker_query_json_error(
+            name="Pytest Invalid Studios Type",
+            query_json=query_json,
+            expected_detail="studios must be a list"
+        )
+
 if __name__ == "__main__":
     unittest.main()

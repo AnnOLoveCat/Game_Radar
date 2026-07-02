@@ -55,8 +55,54 @@ class TestApiBasic(unittest.TestCase):
             os.remove(TEST_DB_FILE)
 
     # =========================
+    # Scheduler API Tests
+    # =========================
+
+    def test_scheduler_status(self):
+        response = self.client.get("/v1/scheduler/status")
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+
+        self.assertIn("scheduler_running", data)
+        self.assertIn("job_count", data)
+        self.assertIn("jobs", data)
+
+        self.assertTrue(data.get("scheduler_running"))
+        self.assertTrue(isinstance(data.get("jobs"), list))
+        self.assertTrue(data.get("job_count") >= 2)
+
+    # =========================
     # Helper Methods
     # =========================
+
+    def _build_query_json(self, **overrides):
+        query_json = {  
+            "target_game": {
+                "title": "Elden Ring",
+                "platform_hints": ["PC", "PlayStation", "Xbox"]
+            },
+            "sources_to_check": ["mock"],
+            "regions": ["japan"],
+            "genres": ["Action RPG"],
+            "platforms": ["PC", "Xbox"],
+            "user_review": {
+                "has_played": True,
+                "platform_played": "PC",
+                "playtime_hours": 40,
+                "is_recommended": True,
+                "review_title": "高難度但很有探索感",
+                "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色，但新手一開始會比較容易挫折。",
+                "pros": ["探索感強", "戰鬥有挑戰性", "世界觀完整"],
+                "cons": ["新手門檻高", "部分 Boss 難度偏高"],
+                "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
+                "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
+            }
+        }
+
+        query_json.update(overrides)
+
+        return query_json
 
     def _build_tracker_payload(
         self,
@@ -67,28 +113,7 @@ class TestApiBasic(unittest.TestCase):
         query_json=None
     ):
         if query_json is None:
-            query_json = {
-                "target_game": {
-                    "title": "Elden Ring",
-                    "platform_hints": ["PC", "PlayStation", "Xbox"]
-                },
-                "sources_to_check": ["mock"],
-                "regions": ["japan"],
-                "genres": ["Action RPG"],
-                "platforms": ["PC", "Xbox"],
-                "user_review": {
-                    "has_played": True,
-                    "platform_played": "PC",
-                    "playtime_hours": 40,
-                    "is_recommended": True,
-                    "review_title": "高難度但很有探索感",
-                    "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色，但新手一開始會比較容易挫折。",
-                    "pros": ["探索感強", "戰鬥有挑戰性", "世界觀完整"],
-                    "cons": ["新手門檻高", "部分 Boss 難度偏高"],
-                    "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
-                    "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
-                }
-            }
+            query_json = self._build_query_json()
 
         return {
             "name": name,
@@ -546,53 +571,29 @@ class TestApiBasic(unittest.TestCase):
     # =========================
 
     def test_create_tracker_invalid_query_json(self):
-        payload = {
-            "name": "Pytest Invalid Query JSON",
-            "source": "mock",
-            "query_json": "{invalid_json}",
-            "update_frequency": "daily",
-            "is_active": True,
-        }
+        payload = self._build_tracker_payload(
+            name="Pytest Invalid Query JSON",
+            query_json="{invalid_json}"
+        )
 
         response = self.client.post("/v1/trackers", json=payload)
-        assert response.status_code == 422
+
+        assert response.status_code == 422, response.json()
 
         data = response.json()
+
         assert "detail" in data
 
+
     def test_create_tracker_invalid_update_frequency(self):
-        payload = {
-            "name": "Pytest Invalid Frequency",
-            "source": "mock",
-            "query_json": {
-                "target_game": {
-                    "title": "Elden Ring",
-                    "platform_hints": ["PC", "PlayStation", "Xbox"]
-                },
-                "sources_to_check": ["mock"],
-                "regions": ["japan"],
-                "genres": ["Action RPG"],
-                "platforms": ["PC", "Xbox"],
-                "user_review": {
-                    "has_played": True,
-                    "platform_played": "PC",
-                    "playtime_hours": 40,
-                    "is_recommended": True,
-                    "review_title": "高難度但很有探索感",
-                    "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色。",
-                    "pros": ["探索感強"],
-                    "cons": ["新手門檻高"],
-                    "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
-                    "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
-                }
-            },
-            "update_frequency": "hourly",
-            "is_active": True,
-        }
+        payload = self._build_tracker_payload(
+            name="Pytest Invalid Frequency",
+            update_frequency="hourly"
+        )
 
         response = self.client.post("/v1/trackers", json=payload)
 
-        assert response.status_code == 422
+        assert response.status_code == 422, response.json()
 
         data = response.json()
 
@@ -605,44 +606,11 @@ class TestApiBasic(unittest.TestCase):
 
         assert any("update_frequency" in loc for loc in error_locs)
 
-    def test_scheduler_status(self):
-        response = self.client.get("/v1/scheduler/status")
-        self.assertEqual(response.status_code, 200)
-
-        data = response.json()
-
-        self.assertIn("scheduler_running", data)
-        self.assertIn("job_count", data)
-        self.assertIn("jobs", data)
-
-        self.assertTrue(data.get("scheduler_running"))
-        self.assertTrue(isinstance(data.get("jobs"), list))
-        self.assertTrue(data.get("job_count") >= 2)
 
     def test_create_tracker_unsupported_query_json_key(self):
-        query_json = {
-            "target_game": {
-                "title": "Elden Ring",
-                "platform_hints": ["PC", "PlayStation", "Xbox"]
-            },
-            "sources_to_check": ["mock"],
-            "regions": ["japan"],
-            "genres": ["Action RPG"],
-            "platforms": ["PC", "Xbox"],
-            "user_review": {
-                "has_played": True,
-                "platform_played": "PC",
-                "playtime_hours": 40,
-                "is_recommended": True,
-                "review_title": "高難度但很有探索感",
-                "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色。",
-                "pros": ["探索感強"],
-                "cons": ["新手門檻高"],
-                "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
-                "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
-            },
-            "unknown_key": "not allowed"
-        }
+        query_json = self._build_query_json(
+            unknown_key="not allowed"
+        )
 
         self._assert_create_tracker_query_json_error(
             name="Pytest Unsupported Query JSON Key",
@@ -650,233 +618,81 @@ class TestApiBasic(unittest.TestCase):
             expected_detail="Unsupported query_json keys: ['unknown_key']"
         )
 
-    def test_create_tracker_invalid_target_game_type(self):
-        query_json = {
-            "target_game": "Elden Ring",
-            "sources_to_check": ["mock"],
-            "regions": ["japan"],
-            "genres": ["Action RPG"],
-            "platforms": ["PC", "Xbox"],
-            "user_review": {
-                "has_played": True,
-                "platform_played": "PC",
-                "playtime_hours": 40,
-                "is_recommended": True,
-                "review_title": "高難度但很有探索感",
-                "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色。",
-                "pros": ["探索感強"],
-                "cons": ["新手門檻高"],
-                "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
-                "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
-            }
-        }
 
-        self._assert_create_tracker_query_json_error(
-            name="Pytest Invalid Target Game Type",
-            query_json=query_json,
-            expected_detail="target_game must be an object"
-        )
-
-    def test_create_tracker_invalid_sources_to_check_type(self):
-        query_json = {
-            "target_game": {
-                "title": "Elden Ring",
-                "platform_hints": ["PC", "PlayStation", "Xbox"]
+    def test_create_tracker_invalid_query_json_field_types(self):
+        test_cases = [
+            {
+                "name": "Pytest Invalid Target Game Type",
+                "query_json": self._build_query_json(
+                    target_game="Elden Ring"
+                ),
+                "expected_detail": "target_game must be an object",
             },
-            "sources_to_check": "mock",
-            "regions": ["japan"],
-            "genres": ["Action RPG"],
-            "platforms": ["PC", "Xbox"],
-            "user_review": {
-                "has_played": True,
-                "platform_played": "PC",
-                "playtime_hours": 40,
-                "is_recommended": True,
-                "review_title": "高難度但很有探索感",
-                "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色。",
-                "pros": ["探索感強"],
-                "cons": ["新手門檻高"],
-                "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
-                "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
-            }
-        }
-
-        self._assert_create_tracker_query_json_error(
-            name="Pytest Invalid Sources To Check Type",
-            query_json=query_json,
-            expected_detail="sources_to_check must be a list"
-        )
-
-    def test_create_tracker_invalid_regions_type(self):
-        query_json = {
-            "target_game": {
-                "title": "Elden Ring",
-                "platform_hints": ["PC", "PlayStation", "Xbox"]
+            {
+                "name": "Pytest Invalid Sources To Check Type",
+                "query_json": self._build_query_json(
+                    sources_to_check="mock"
+                ),
+                "expected_detail": "sources_to_check must be a list",
             },
-            "sources_to_check": ["mock"],
-            "regions": "japan",
-            "genres": ["Action RPG"],
-            "platforms": ["PC", "Xbox"],
-            "user_review": {
-                "has_played": True,
-                "platform_played": "PC",
-                "playtime_hours": 40,
-                "is_recommended": True,
-                "review_title": "高難度但很有探索感",
-                "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色。",
-                "pros": ["探索感強"],
-                "cons": ["新手門檻高"],
-                "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
-                "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
-            }
-        }
-
-        self._assert_create_tracker_query_json_error(
-            name="Pytest Invalid Regions Type",
-            query_json=query_json,
-            expected_detail="regions must be a list"
-        )
-
-    def test_create_tracker_invalid_genres_type(self):
-        query_json = {
-            "target_game": {
-                "title": "Elden Ring",
-                "platform_hints": ["PC", "PlayStation", "Xbox"]
+            {
+                "name": "Pytest Invalid Regions Type",
+                "query_json": self._build_query_json(
+                    regions="japan"
+                ),
+                "expected_detail": "regions must be a list",
             },
-            "sources_to_check": ["mock"],
-            "regions": ["japan"],
-            "genres": "Action RPG",
-            "platforms": ["PC", "Xbox"],
-            "user_review": {
-                "has_played": True,
-                "platform_played": "PC",
-                "playtime_hours": 40,
-                "is_recommended": True,
-                "review_title": "高難度但很有探索感",
-                "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色。",
-                "pros": ["探索感強"],
-                "cons": ["新手門檻高"],
-                "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
-                "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
-            }
-        }
-
-        self._assert_create_tracker_query_json_error(
-            name="Pytest Invalid Genres Type",
-            query_json=query_json,
-            expected_detail="genres must be a list"
-        )
-
-    def test_create_tracker_invalid_platforms_type(self):
-        query_json = {
-            "target_game": {
-                "title": "Elden Ring",
-                "platform_hints": ["PC", "PlayStation", "Xbox"]
+            {
+                "name": "Pytest Invalid Genres Type",
+                "query_json": self._build_query_json(
+                    genres="Action RPG"
+                ),
+                "expected_detail": "genres must be a list",
             },
-            "sources_to_check": ["mock"],
-            "regions": ["japan"],
-            "genres": ["Action RPG"],
-            "platforms": "PC",
-            "user_review": {
-                "has_played": True,
-                "platform_played": "PC",
-                "playtime_hours": 40,
-                "is_recommended": True,
-                "review_title": "高難度但很有探索感",
-                "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色。",
-                "pros": ["探索感強"],
-                "cons": ["新手門檻高"],
-                "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
-                "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
-            }
-        }
-
-        self._assert_create_tracker_query_json_error(
-            name="Pytest Invalid Platforms Type",
-            query_json=query_json,
-            expected_detail="platforms must be a list"
-        )
-
-    def test_create_tracker_invalid_user_review_type(self):
-        query_json = {
-            "target_game": {
-                "title": "Elden Ring",
-                "platform_hints": ["PC", "PlayStation", "Xbox"]
+            {
+                "name": "Pytest Invalid Platforms Type",
+                "query_json": self._build_query_json(
+                    platforms="PC"
+                ),
+                "expected_detail": "platforms must be a list",
             },
-            "sources_to_check": ["mock"],
-            "regions": ["japan"],
-            "genres": ["Action RPG"],
-            "platforms": ["PC", "Xbox"],
-            "user_review": "good game"
-        }
-
-        self._assert_create_tracker_query_json_error(
-            name="Pytest Invalid User Review Type",
-            query_json=query_json,
-            expected_detail="user_review must be an object"
-        )
-
-    def test_create_tracker_invalid_games_type(self):
-        query_json = {
-            "target_game": {
-                "title": "Elden Ring",
-                "platform_hints": ["PC", "PlayStation", "Xbox"]
+            {
+                "name": "Pytest Invalid User Review Type",
+                "query_json": self._build_query_json(
+                    user_review="good game"
+                ),
+                "expected_detail": "user_review must be an object",
             },
-            "sources_to_check": ["mock"],
-            "regions": ["japan"],
-            "genres": ["Action RPG"],
-            "platforms": ["PC", "Xbox"],
-            "games": "Elden Ring",
-            "user_review": {
-                "has_played": True,
-                "platform_played": "PC",
-                "playtime_hours": 40,
-                "is_recommended": True,
-                "review_title": "高難度但很有探索感",
-                "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色。",
-                "pros": ["探索感強"],
-                "cons": ["新手門檻高"],
-                "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
-                "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
-            }
-        }
-
-        self._assert_create_tracker_query_json_error(
-            name="Pytest Invalid Games Type",
-            query_json=query_json,
-            expected_detail="games must be a list"
-        )
-
-    def test_create_tracker_invalid_studios_type(self):
-        query_json = {
-            "target_game": {
-                "title": "Elden Ring",
-                "platform_hints": ["PC", "PlayStation", "Xbox"]
+            {
+                "name": "Pytest Invalid Games Type",
+                "query_json": self._build_query_json(
+                    games="Elden Ring"
+                ),
+                "expected_detail": "games must be a list",
             },
-            "sources_to_check": ["mock"],
-            "regions": ["japan"],
-            "genres": ["Action RPG"],
-            "platforms": ["PC", "Xbox"],
-            "studios": "FromSoftware",
-            "user_review": {
-                "has_played": True,
-                "platform_played": "PC",
-                "playtime_hours": 40,
-                "is_recommended": True,
-                "review_title": "高難度但很有探索感",
-                "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色。",
-                "pros": ["探索感強"],
-                "cons": ["新手門檻高"],
-                "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
-                "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
-            }
-        }
+            {
+                "name": "Pytest Invalid Studios Type",
+                "query_json": self._build_query_json(
+                    studios="FromSoftware"
+                ),
+                "expected_detail": "studios must be a list",
+            },
+            {
+                "name": "Pytest Invalid Is Indie Type",
+                "query_json": self._build_query_json(
+                    is_indie="false"
+                ),
+                "expected_detail": "is_indie must be a boolean",
+            },
+        ]
 
-        self._assert_create_tracker_query_json_error(
-            name="Pytest Invalid Studios Type",
-            query_json=query_json,
-            expected_detail="studios must be a list"
-        )
+        for case in test_cases:
+            with self.subTest(case=case["name"]):
+                self._assert_create_tracker_query_json_error(
+                    name=case["name"],
+                    query_json=case["query_json"],
+                    expected_detail=case["expected_detail"]
+                )
 
 if __name__ == "__main__":
     unittest.main()

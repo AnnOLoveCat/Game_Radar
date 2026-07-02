@@ -644,19 +644,11 @@ class TestApiBasic(unittest.TestCase):
             "unknown_key": "not allowed"
         }
 
-        payload = self._build_tracker_payload(
+        self._assert_create_tracker_query_json_error(
             name="Pytest Unsupported Query JSON Key",
-            query_json=query_json
+            query_json=query_json,
+            expected_detail="Unsupported query_json keys: ['unknown_key']"
         )
-
-        response = self.client.post("/v1/trackers", json=payload)
-
-        assert response.status_code == 400, response.json()
-
-        data = response.json()
-
-        assert "detail" in data
-        assert "Unsupported query_json keys" in data.get("detail")
 
     def test_create_tracker_invalid_target_game_type(self):
         query_json = {
@@ -679,19 +671,11 @@ class TestApiBasic(unittest.TestCase):
             }
         }
 
-        payload = self._build_tracker_payload(
+        self._assert_create_tracker_query_json_error(
             name="Pytest Invalid Target Game Type",
-            query_json=query_json
+            query_json=query_json,
+            expected_detail="target_game must be an object"
         )
-
-        response = self.client.post("/v1/trackers", json=payload)
-
-        assert response.status_code == 400, response.json()
-
-        data = response.json()
-
-        assert "detail" in data
-        assert data.get("detail") == "target_game must be an object"
 
     def test_create_tracker_invalid_sources_to_check_type(self):
         query_json = {
@@ -717,19 +701,11 @@ class TestApiBasic(unittest.TestCase):
             }
         }
 
-        payload = self._build_tracker_payload(
+        self._assert_create_tracker_query_json_error(
             name="Pytest Invalid Sources To Check Type",
-            query_json=query_json
+            query_json=query_json,
+            expected_detail="sources_to_check must be a list"
         )
-
-        response = self.client.post("/v1/trackers", json=payload)
-
-        assert response.status_code == 400, response.json()
-
-        data = response.json()
-
-        assert "detail" in data
-        assert data.get("detail") == "sources_to_check must be a list"
 
     def test_create_tracker_invalid_regions_type(self):
         query_json = {
@@ -755,19 +731,11 @@ class TestApiBasic(unittest.TestCase):
             }
         }
 
-        payload = self._build_tracker_payload(
+        self._assert_create_tracker_query_json_error(
             name="Pytest Invalid Regions Type",
-            query_json=query_json
+            query_json=query_json,
+            expected_detail="regions must be a list"
         )
-
-        response = self.client.post("/v1/trackers", json=payload)
-
-        assert response.status_code == 400, response.json()
-
-        data = response.json()
-
-        assert "detail" in data
-        assert data.get("detail") == "regions must be a list"
 
     def test_create_tracker_invalid_genres_type(self):
         query_json = {
@@ -793,19 +761,11 @@ class TestApiBasic(unittest.TestCase):
             }
         }
 
-        payload = self._build_tracker_payload(
+        self._assert_create_tracker_query_json_error(
             name="Pytest Invalid Genres Type",
-            query_json=query_json
+            query_json=query_json,
+            expected_detail="genres must be a list"
         )
-
-        response = self.client.post("/v1/trackers", json=payload)
-
-        assert response.status_code == 400, response.json()
-
-        data = response.json()
-
-        assert "detail" in data
-        assert data.get("detail") == "genres must be a list"
 
     def test_create_tracker_invalid_platforms_type(self):
         query_json = {
@@ -831,19 +791,11 @@ class TestApiBasic(unittest.TestCase):
             }
         }
 
-        payload = self._build_tracker_payload(
+        self._assert_create_tracker_query_json_error(
             name="Pytest Invalid Platforms Type",
-            query_json=query_json
+            query_json=query_json,
+            expected_detail="platforms must be a list"
         )
-
-        response = self.client.post("/v1/trackers", json=payload)
-
-        assert response.status_code == 400, response.json()
-
-        data = response.json()
-
-        assert "detail" in data
-        assert data.get("detail") == "platforms must be a list"
 
     def test_create_tracker_invalid_user_review_type(self):
         query_json = {

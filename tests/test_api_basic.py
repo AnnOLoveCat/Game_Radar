@@ -130,6 +130,27 @@ class TestApiBasic(unittest.TestCase):
         assert response.status_code == 200, response.json()
 
         return response.json()
+    
+    def _assert_create_tracker_query_json_error(
+        self,
+        name,
+        query_json,
+        expected_detail,
+        expected_status_code=400
+    ):
+        payload = self._build_tracker_payload(
+            name=name,
+            query_json=query_json
+        )
+
+        response = self.client.post("/v1/trackers", json=payload)
+
+        assert response.status_code == expected_status_code, response.json()
+
+        data = response.json()
+
+        assert "detail" in data
+        assert data.get("detail") == expected_detail
 
     # =========================
     # Basic API Tests
@@ -837,19 +858,11 @@ class TestApiBasic(unittest.TestCase):
             "user_review": "good game"
         }
 
-        payload = self._build_tracker_payload(
+        self._assert_create_tracker_query_json_error(
             name="Pytest Invalid User Review Type",
-            query_json=query_json
+            query_json=query_json,
+            expected_detail="user_review must be an object"
         )
-
-        response = self.client.post("/v1/trackers", json=payload)
-
-        assert response.status_code == 400, response.json()
-
-        data = response.json()
-
-        assert "detail" in data
-        assert data.get("detail") == "user_review must be an object"
 
 if __name__ == "__main__":
     unittest.main()

@@ -824,5 +824,32 @@ class TestApiBasic(unittest.TestCase):
         assert "detail" in data
         assert data.get("detail") == "platforms must be a list"
 
+    def test_create_tracker_invalid_user_review_type(self):
+        query_json = {
+            "target_game": {
+                "title": "Elden Ring",
+                "platform_hints": ["PC", "PlayStation", "Xbox"]
+            },
+            "sources_to_check": ["mock"],
+            "regions": ["japan"],
+            "genres": ["Action RPG"],
+            "platforms": ["PC", "Xbox"],
+            "user_review": "good game"
+        }
+
+        payload = self._build_tracker_payload(
+            name="Pytest Invalid User Review Type",
+            query_json=query_json
+        )
+
+        response = self.client.post("/v1/trackers", json=payload)
+
+        assert response.status_code == 400, response.json()
+
+        data = response.json()
+
+        assert "detail" in data
+        assert data.get("detail") == "user_review must be an object"
+
 if __name__ == "__main__":
     unittest.main()

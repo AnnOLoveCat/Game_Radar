@@ -694,5 +694,105 @@ class TestApiBasic(unittest.TestCase):
                     expected_detail=case["expected_detail"]
                 )
 
+
+    def _assert_update_tracker_query_json_error(
+        self,
+        query_json,
+        expected_detail,
+        expected_status_code=400
+    ):
+        tracker_id, _ = self._create_tracker(
+            name="Pytest Update Query JSON Validation Tracker"
+        )
+
+        update_payload = {
+            "query_json": query_json
+        }
+
+        response = self.client.patch(
+            "/v1/trackers/{0}".format(tracker_id),
+            json=update_payload
+        )
+
+        assert response.status_code == expected_status_code, response.json()
+
+        data = response.json()
+
+        assert "detail" in data
+        assert data.get("detail") == expected_detail
+
+    def test_update_tracker_invalid_query_json_field_types(self):
+        test_cases = [
+            {
+                "name": "Pytest Update Invalid Target Game Type",
+                "query_json": self._build_query_json(
+                    target_game="Elden Ring"
+                ),
+                "expected_detail": "target_game must be an object",
+            },
+            {
+                "name": "Pytest Update Invalid Sources To Check Type",
+                "query_json": self._build_query_json(
+                    sources_to_check="mock"
+                ),
+                "expected_detail": "sources_to_check must be a list",
+            },
+            {
+                "name": "Pytest Update Invalid Regions Type",
+                "query_json": self._build_query_json(
+                    regions="japan"
+                ),
+                "expected_detail": "regions must be a list",
+            },
+            {
+                "name": "Pytest Update Invalid Genres Type",
+                "query_json": self._build_query_json(
+                    genres="Action RPG"
+                ),
+                "expected_detail": "genres must be a list",
+            },
+            {
+                "name": "Pytest Update Invalid Platforms Type",
+                "query_json": self._build_query_json(
+                    platforms="PC"
+                ),
+                "expected_detail": "platforms must be a list",
+            },
+            {
+                "name": "Pytest Update Invalid User Review Type",
+                "query_json": self._build_query_json(
+                    user_review="good game"
+                ),
+                "expected_detail": "user_review must be an object",
+            },
+            {
+                "name": "Pytest Update Invalid Games Type",
+                "query_json": self._build_query_json(
+                    games="Elden Ring"
+                ),
+                "expected_detail": "games must be a list",
+            },
+            {
+                "name": "Pytest Update Invalid Studios Type",
+                "query_json": self._build_query_json(
+                    studios="FromSoftware"
+                ),
+                "expected_detail": "studios must be a list",
+            },
+            {
+                "name": "Pytest Update Invalid Is Indie Type",
+                "query_json": self._build_query_json(
+                    is_indie="false"
+                ),
+                "expected_detail": "is_indie must be a boolean",
+            },
+        ]
+
+        for case in test_cases:
+            with self.subTest(case=case["name"]):
+                self._assert_update_tracker_query_json_error(
+                    query_json=case["query_json"],
+                    expected_detail=case["expected_detail"]
+                )
 if __name__ == "__main__":
     unittest.main()

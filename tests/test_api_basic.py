@@ -803,6 +803,33 @@ class TestApiBasic(unittest.TestCase):
             query_json=query_json,
             expected_detail="Unsupported query_json keys: ['unknown_key']"
         )
-        
+    
+    def test_update_tracker_invalid_update_frequency(self):
+        tracker_id, _ = self._create_tracker(
+            name="Pytest Update Invalid Frequency Tracker"
+        )
+
+        update_payload = {
+            "update_frequency": "hourly"
+        }
+
+        response = self.client.patch(
+            "/v1/trackers/{0}".format(tracker_id),
+            json=update_payload
+        )
+
+        assert response.status_code == 422, response.json()
+
+        data = response.json()
+
+        assert "detail" in data
+
+        error_locs = [
+            error.get("loc", [])
+            for error in data.get("detail", [])
+        ]
+
+        assert any("update_frequency" in loc for loc in error_locs)
+
 if __name__ == "__main__":
     unittest.main()

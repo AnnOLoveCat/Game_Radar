@@ -694,7 +694,6 @@ class TestApiBasic(unittest.TestCase):
                     expected_detail=case["expected_detail"]
                 )
 
-
     def _assert_update_tracker_query_json_error(
         self,
         query_json,
@@ -794,5 +793,16 @@ class TestApiBasic(unittest.TestCase):
                     query_json=case["query_json"],
                     expected_detail=case["expected_detail"]
                 )
+
+    def test_update_tracker_unsupported_query_json_key(self):
+        query_json = self._build_query_json(
+            unknown_key="not allowed"
+        )
+
+        self._assert_update_tracker_query_json_error(
+            query_json=query_json,
+            expected_detail="Unsupported query_json keys: ['unknown_key']"
+        )
+        
 if __name__ == "__main__":
     unittest.main()

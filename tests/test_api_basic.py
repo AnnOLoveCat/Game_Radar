@@ -830,6 +830,26 @@ class TestApiBasic(unittest.TestCase):
         ]
 
         assert any("update_frequency" in loc for loc in error_locs)
+    
+    def test_update_missing_tracker(self):
+        update_payload = {
+            "name": "Pytest Missing Updated Tracker",
+            "update_frequency": "weekly",
+            "is_active": False,
+        }
+
+        response = self.client.patch(
+            "/v1/trackers/999999",
+            json=update_payload
+        )
+
+        assert response.status_code == 404, response.json()
+
+        data = response.json()
+
+        assert "detail" in data
+        assert data.get("detail") == "Tracker not found"
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -850,6 +850,15 @@ class TestApiBasic(unittest.TestCase):
         assert "detail" in data
         assert data.get("detail") == "Tracker not found"
 
+    def test_delete_missing_tracker(self):
+        response = self.client.delete("/v1/trackers/999999")
+
+        assert response.status_code == 404, response.json()
+
+        data = response.json()
+
+        assert "detail" in data
+        assert data.get("detail") == "Tracker not found"
 
 if __name__ == "__main__":
     unittest.main()

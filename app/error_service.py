@@ -85,7 +85,7 @@ class ExternalServiceRequestError(BadGatewayError):
 
 
 # =========================
-# Common Raise Methods
+# Tracker Raise Methods
 # =========================
 
 def raise_tracker_not_found():
@@ -94,6 +94,7 @@ def raise_tracker_not_found():
 
 def raise_invalid_update_frequency(update_frequency: str):
     allowed = ["daily", "manual", "weekly"]
+
     raise InvalidUpdateFrequencyError(
         f"update_frequency must be one of {allowed}"
     )

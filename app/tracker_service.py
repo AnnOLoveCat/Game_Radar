@@ -5,13 +5,25 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models import Tracker, Game, GameMatch, Run
+
 from app.match_service import match_game
 from app.fetch_service import fetch_games_by_source
+from app.error_service import (
+    raise_expected_boolean,
+    raise_expected_list,
+    raise_expected_object,
+    raise_invalid_update_frequency,
+    raise_query_json_error,
+    raise_run_execution_error,
+    raise_run_query_json_format_error,
+    raise_unsupported_query_json_keys,
+    raise_tracker_not_found,
+)
 
 
 def validate_tracker_query_json(query: dict):
     if not isinstance(query, dict):
-        raise HTTPException(status_code=400, detail="query_json must be a JSON object")
+        raise_query_json_error("query_json must be a JSON object")
 
     allowed_keys = {
         "target_game",
@@ -21,47 +33,53 @@ def validate_tracker_query_json(query: dict):
         "platforms",
         "user_review",
 
-        # 保留舊格式相容
+        # legacy-compatible fields
         "games",
         "is_indie",
         "studios",
     }
 
     unexpected_keys = set(query.keys()) - allowed_keys
+
     if unexpected_keys:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported query_json keys: {sorted(unexpected_keys)}"
-        )
+        raise_unsupported_query_json_keys(unexpected_keys)
 
     if "target_game" in query and not isinstance(query["target_game"], dict):
-        raise HTTPException(status_code=400, detail="target_game must be an object")
+        raise_expected_object("target_game")
 
     if "sources_to_check" in query and not isinstance(query["sources_to_check"], list):
-        raise HTTPException(status_code=400, detail="sources_to_check must be a list")
+        raise_expected_list("sources_to_check")
 
     if "regions" in query and not isinstance(query["regions"], list):
-        raise HTTPException(status_code=400, detail="regions must be a list")
+        raise_expected_list("regions")
 
     if "genres" in query and not isinstance(query["genres"], list):
-        raise HTTPException(status_code=400, detail="genres must be a list")
+        raise_expected_list("genres")
 
     if "platforms" in query and not isinstance(query["platforms"], list):
-        raise HTTPException(status_code=400, detail="platforms must be a list")
+        raise_expected_list("platforms")
 
     if "user_review" in query and not isinstance(query["user_review"], dict):
-        raise HTTPException(status_code=400, detail="user_review must be an object")
+        raise_expected_object("user_review")
 
-    # 舊格式相容
     if "games" in query and not isinstance(query["games"], list):
-        raise HTTPException(status_code=400, detail="games must be a list")
+        raise_expected_list("games")
 
     if "studios" in query and not isinstance(query["studios"], list):
-        raise HTTPException(status_code=400, detail="studios must be a list")
+        raise_expected_list("studios")
 
     if "is_indie" in query and not isinstance(query["is_indie"], bool):
-        raise HTTPException(status_code=400, detail="is_indie must be a boolean")
+        raise_expected_boolean("is_indie")
 
+def validate_update_frequency_value(update_frequency: str):
+    allowed = {"daily", "weekly", "manual"}
+
+    normalized_value = update_frequency.strip().lower()
+
+    if normalized_value not in allowed:
+        raise_invalid_update_frequency(normalized_value)
+
+    return normalized_value
 
 def create_tracker_record(payload, db: Session):
     query = payload.query_json
@@ -79,8 +97,8 @@ def create_tracker_record(payload, db: Session):
     db.add(tracker)
     db.commit()
     db.refresh(tracker)
-    return tracker
 
+    return tracker
 
 def execute_tracker_run(tracker: Tracker, db: Session):
     run = Run(tracker_id=tracker.id, status="running")
@@ -99,7 +117,7 @@ def execute_tracker_run(tracker: Tracker, db: Session):
             run.status = "failed"
             run.error_message = "Invalid query_json format"
             db.commit()
-            raise HTTPException(status_code=400, detail="Invalid query_json format")
+            raise_run_query_json_format_error()
         
         games_data = fetch_games_by_source(tracker.source, query)
         for item in games_data:
@@ -146,7 +164,7 @@ def execute_tracker_run(tracker: Tracker, db: Session):
         run.status = "failed"
         run.error_message = str(e)
         db.commit()
-        raise HTTPException(status_code=500, detail=f"Run failed: {str(e)}")
+        raise_run_execution_error(str(e))
     
 
 def delete_tracker_with_dependencies(tracker: Tracker, db: Session):
@@ -173,10 +191,12 @@ def update_tracker_fields(tracker: Tracker, update_data: dict, db: Session):
     return tracker
 
 
-def get_tracker_or_404(tracker_id: int, db: Session):
-    tracker = db.query(Tracker).filter(Tracker.id == tracker_id).first()
-    if not tracker:
-        raise HTTPException(status_code=404, detail="Tracker not found")
+def get_tracker_or_404(tracker_id: int, db: Session) -> Tracker:
+    tracker = db.get(Tracker, tracker_id)
+
+    if tracker is None:
+        raise_tracker_not_found()
+
     return tracker
 
 def list_all_trackers(db: Session):
@@ -191,17 +211,20 @@ def list_all_games(db: Session):
 
 # 查tracker的執行紀錄
 def list_runs_by_tracker(tracker_id: int, db: Session):
-    return(
+    get_tracker_or_404(tracker_id, db)
+
+    return (
         db.query(Run)
-        .filter(Run.tracker_id==tracker_id)
+        .filter(Run.tracker_id == tracker_id)
         .order_by(Run.id.desc())
         .all()
     )
 
-
 # 查tracker配對到的遊戲
 def list_games_by_tracker(tracker_id: int, db: Session):
-    return(
+    get_tracker_or_404(tracker_id, db)
+
+    return (
         db.query(Game)
         .join(GameMatch, Game.id == GameMatch.game_id)
         .filter(GameMatch.tracker_id == tracker_id)
@@ -213,11 +236,15 @@ def get_tracker_detail(tracker_id: int, db: Session):
     return get_tracker_or_404(tracker_id, db)
 
 def list_active_trackers_by_frequency(update_frequency: str, db: Session):
+    update_frequency = validate_update_frequency_value(update_frequency)
+
     return (
-        db.query(Tracker).filter(
+        db.query(Tracker)
+        .filter(
             Tracker.is_active == True,
             Tracker.update_frequency == update_frequency
-        ).all()
+        )
+        .all()
     )
 
 def run_trackers_by_frequency(update_frequency: str, db: Session):

@@ -1,11 +1,10 @@
-from fastapi import FastAPI, Depends, HTTPException, Path, Query
+from fastapi import FastAPI, Depends, Path, Query
 from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.db import SessionLocal
 
 from app.db import get_db
-from app.models import Tracker, Game, GameMatch, Run
 from app.schemas import (
     TrackerCreate,
     TrackerUpdate,
@@ -195,13 +194,11 @@ def list_games(db: Session = Depends(get_db)):
 
 @app.get("/v1/trackers/{tracker_id}/runs", response_model=list[RunOut], tags=["基礎使用"], summary="查詢某 tracker 的執行紀錄")
 def list_tracker_runs(tracker_id: int, db: Session = Depends(get_db)):
-    get_tracker_or_404(tracker_id, db)
     return list_runs_by_tracker(tracker_id, db)
 
 
 @app.get("/v1/trackers/{tracker_id}/games", response_model=list[GameOut], tags=["基礎使用"], summary="查詢某 tracker 配對到的遊戲")
 def list_tracker_games(tracker_id: int, db: Session = Depends(get_db)):
-    get_tracker_or_404(tracker_id, db)
     return list_games_by_tracker(tracker_id, db)
 
 

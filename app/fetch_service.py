@@ -1,6 +1,10 @@
 import httpx, os
 from dotenv import load_dotenv
-from fastapi import HTTPException
+from app.error_service import (
+    raise_external_service_config_error,
+    raise_external_service_request_error,
+    raise_unsupported_source,
+)
 
 # 加載 .env 文件中的 TOKEN
 load_dotenv()
@@ -15,7 +19,7 @@ def fetch_mock_games():
 def fetch_rawg_games(query: dict | None = None):
 
     if not RAWG_API_KEY:
-        raise HTTPException(status_code=500, detail="RAWG_API_KEY is not configured")
+        raise_external_service_config_error("RAWG_API_KEY")
     
     # RAWG API 
     url = "https://api.rawg.io/api/games"
@@ -40,7 +44,7 @@ def fetch_rawg_games(query: dict | None = None):
         response = httpx.get(url, params=params, timeout=20.0)
         response.raise_for_status()
     except httpx.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"RAWG request failed: {str(e)}")
+        raise_external_service_request_error("RAWG", str(e))
     
     data: dict = response.json()
 
@@ -81,4 +85,4 @@ def fetch_games_by_source(source: str, query: dict | None = None):
     if source == "rawg":
         return fetch_rawg_games(query)
 
-    return []
+    raise_unsupported_source(source)

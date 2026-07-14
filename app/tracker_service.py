@@ -157,7 +157,11 @@ def execute_tracker_run(tracker: Tracker, db: Session):
             "matched_games": matched_games,
         }
 
-    except HTTPException:
+    except HTTPException as error:
+        run.ended_at = datetime.utcnow()
+        run.status = "failed"
+        run.error_message = str(error.detail)
+        db.commit()
         raise
     except Exception as e:
         run.ended_at = datetime.utcnow()

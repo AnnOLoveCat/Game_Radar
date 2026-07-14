@@ -1,34 +1,37 @@
-import httpx, os
+import os
+
+import httpx
 from dotenv import load_dotenv
+
 from app.error_service import (
     raise_external_service_config_error,
     raise_external_service_request_error,
     raise_unsupported_source,
 )
 
+
 # 加載 .env 文件中的 TOKEN
 load_dotenv()
 RAWG_API_KEY = os.getenv("RAWG_API_KEY")
 
+
 def fetch_mock_games():
-    # 不讓tracker_service直接依賴MOCK_GAMES，而是統一fetch_service取得資料。
+    # 不讓 tracker_service 直接依賴 MOCK_GAMES，而是統一從 fetch_service 取得資料。
     from app.mock_data import MOCK_GAMES
     return MOCK_GAMES
 
 
 def fetch_rawg_games(query: dict | None = None):
-
     if not RAWG_API_KEY:
         raise_external_service_config_error("RAWG_API_KEY")
-    
-    # RAWG API 
+
     url = "https://api.rawg.io/api/games"
 
     params = {
         "key": RAWG_API_KEY,
         "page_size": 10,
     }
-    
+
     if query:
         target_game = query.get("target_game", {})
         target_title = target_game.get("title")
@@ -43,9 +46,9 @@ def fetch_rawg_games(query: dict | None = None):
     try:
         response = httpx.get(url, params=params, timeout=20.0)
         response.raise_for_status()
-    except httpx.HTTPError as e:
-        raise_external_service_request_error("RAWG", str(e))
-    
+    except httpx.HTTPError as error:
+        raise_external_service_request_error("RAWG", str(error))
+
     data: dict = response.json()
 
     results = []
@@ -77,7 +80,7 @@ def fetch_rawg_games(query: dict | None = None):
 
     return results
 
-    
+
 def fetch_games_by_source(source: str, query: dict | None = None):
     if source == "mock":
         return fetch_mock_games()

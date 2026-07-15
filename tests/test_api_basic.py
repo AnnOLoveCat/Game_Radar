@@ -860,5 +860,49 @@ class TestApiBasic(unittest.TestCase):
         assert "detail" in data
         assert data.get("detail") == "Tracker not found"
 
+    def test_run_tracker_unsupported_source_records_failed_run(self):
+        tracker_id, _ = self._create_tracker(
+            name="Pytest Unsupported Source Tracker",
+            source="steam"
+        )
+
+        response = self.client.post(
+            "/v1/trackers/{0}/run".format(tracker_id)
+        )
+
+        assert response.status_code == 400, response.json()
+
+        data = response.json()
+
+        assert "detail" in data
+        assert data.get("detail") == "Unsupported source: steam"
+
+        runs_response = self.client.get(
+            "/v1/trackers/{0}/runs".format(tracker_id)
+        )
+
+        assert runs_response.status_code == 200, runs_response.json()
+
+        runs_data = runs_response.json()
+
+        assert isinstance(runs_data, list)
+        assert len(runs_data) >= 1
+
+        latest_run = runs_data[0]
+
+        assert latest_run.get("tracker_id") == tracker_id
+        assert latest_run.get("status") == "failed"
+        assert latest_run.get("error_message") == "Unsupported source: steam"
+
+    def test_active_trackers_invalid_update_frequency_path(self):
+        response = self.client.get("/v1/trackers/active/hourly")
+
+        assert response.status_code == 400, response.json()
+
+        data = response.json()
+
+        assert "detail" in data
+        assert data.get("detail") == "update_frequency must be one of ['daily', 'manual', 'weekly']"
+
 if __name__ == "__main__":
     unittest.main()

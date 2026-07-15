@@ -904,5 +904,15 @@ class TestApiBasic(unittest.TestCase):
         assert "detail" in data
         assert data.get("detail") == "update_frequency must be one of ['daily', 'manual', 'weekly']"
 
+    def test_run_trackers_invalid_update_frequency_path(self):
+        response = self.client.post("/v1/trackers/run/hourly")
+
+        assert response.status_code == 400, response.json()
+
+        data = response.json()
+
+        assert "detail" in data
+        assert data.get("detail") == "update_frequency must be one of ['daily', 'manual', 'weekly']"
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,10 @@
-import os, unittest, json
+# 1. 使用 FastAPI TestClient 直接測 API endpoint。
+# 2. 使用獨立 SQLite 測試資料庫，避免影響正式資料庫。
+# 3. 把相同類型的 200 / 400 / 404 / 422 回應合併成 table-driven tests，
+#    避免每個 endpoint 都寫一個重複的 test function。
+# 4. 驗證 tracker CRUD、tracker run、dashboard、frequency rules、query_json validation、
+#    missing tracker、unsupported source 等基本流程。
+import os, unittest
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -9,14 +15,18 @@ from app.db import get_db
 from app.models import Base
 
 
+# 測試專用 SQLite DB 檔案，測試結束後會刪除。
 TEST_DB_FILE = "test_game_radar.db"
 TEST_DB_URL = "sqlite:///./{0}".format(TEST_DB_FILE)
 
+# 建立測試用 SQLAlchemy engine。
+# check_same_thread=False 是 SQLite 搭配 FastAPI TestClient 常見設定。
 engine = create_engine(
     TEST_DB_URL,
     connect_args={"check_same_thread": False}
 )
 
+# 測試用 Session factory，後面會用它取代正式 get_db。
 TestingSessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
@@ -24,6 +34,8 @@ TestingSessionLocal = sessionmaker(
 )
 
 
+# 覆蓋 FastAPI 原本的 get_db dependency。
+# 測試時所有 API 都會使用 TestingSessionLocal，而不是正式資料庫 Session。
 def override_get_db():
     db = TestingSessionLocal()
     try:
@@ -34,6 +46,8 @@ def override_get_db():
 
 class TestApiBasic(unittest.TestCase):
     @classmethod
+    # 所有 test 開始前只執行一次。
+    # 這裡會重建測試資料表、掛上測試 DB dependency、啟動 TestClient。
     def setUpClass(cls):
         Base.metadata.drop_all(bind=engine)
         Base.metadata.create_all(bind=engine)
@@ -44,6 +58,8 @@ class TestApiBasic(unittest.TestCase):
         cls.client = cls.client_manager.__enter__()
 
     @classmethod
+    # 所有 test 結束後只執行一次。
+    # 這裡會關閉 TestClient、清除 dependency override、刪除測試 DB。
     def tearDownClass(cls):
         cls.client_manager.__exit__(None, None, None)
 
@@ -55,29 +71,87 @@ class TestApiBasic(unittest.TestCase):
             os.remove(TEST_DB_FILE)
 
     # =========================
-    # Scheduler API Tests
-    # =========================
-
-    def test_scheduler_status(self):
-        response = self.client.get("/v1/scheduler/status")
-        self.assertEqual(response.status_code, 200)
-
-        data = response.json()
-
-        self.assertIn("scheduler_running", data)
-        self.assertIn("job_count", data)
-        self.assertIn("jobs", data)
-
-        self.assertTrue(data.get("scheduler_running"))
-        self.assertTrue(isinstance(data.get("jobs"), list))
-        self.assertTrue(data.get("job_count") >= 2)
-
-    # =========================
     # Helper Methods
     # =========================
 
+    # 共用 HTTP request helper。
+    # table-driven test 可以用 method/path/json_body 決定要打哪個 API，避免重複寫 self.client.get/post/patch/delete。
+    def _request(self, method, path, json_body=None):
+        if method == "get":
+            return self.client.get(path)
+
+        if method == "post":
+            return self.client.post(path, json=json_body)
+
+        if method == "patch":
+            return self.client.patch(path, json=json_body)
+
+        if method == "delete":
+            return self.client.delete(path)
+
+        raise ValueError("Unsupported HTTP method: {0}".format(method))
+
+    # 共用錯誤回應檢查 helper。
+    # expected_detail：用來檢查 400 / 404 這種 detail 是字串的錯誤。
+    # expected_field：用來檢查 FastAPI / Pydantic 422，確認錯誤位置 loc 有出現指定欄位。
+    def _assert_error_response(
+        self,
+        response,
+        expected_status_code,
+        expected_detail=None,
+        expected_field=None
+    ):
+        assert response.status_code == expected_status_code, response.json()
+
+        data = response.json()
+
+        assert "detail" in data
+
+        # 400 / 404 類型錯誤通常是 detail 字串，例如 "Tracker not found"。
+        if expected_detail is not None:
+            assert data.get("detail") == expected_detail
+
+        # 422 類型錯誤通常是 detail list，要從 loc 裡確認是哪個欄位錯。
+        if expected_field is not None:
+            error_locs = [
+                error.get("loc", [])
+                for error in data.get("detail", [])
+            ]
+
+            assert any(expected_field in loc for loc in error_locs)
+
+    # 共用 list 回應檢查 helper。
+    # 適合檢查 GET list endpoints，例如 /v1/trackers、/runs、/games、dashboard list。
+    def _assert_list_response(
+        self,
+        response,
+        expected_status_code=200,
+        min_length=None,
+        required_keys=None
+    ):
+        assert response.status_code == expected_status_code, response.json()
+
+        data = response.json()
+
+        assert isinstance(data, list)
+
+        if min_length is not None:
+            assert len(data) >= min_length
+
+        # 如果指定 required_keys，就檢查第一筆資料是否具有必要欄位。
+        if required_keys:
+            assert len(data) >= 1
+
+            first_item = data[0]
+            for key in required_keys:
+                assert key in first_item
+
+        return data
+
+    # 建立一份合法的 query_json 測試資料。
+    # overrides 可以故意覆蓋某個欄位，例如 regions="japan"，用來測錯誤型別。
     def _build_query_json(self, **overrides):
-        query_json = {  
+        query_json = {
             "target_game": {
                 "title": "Elden Ring",
                 "platform_hints": ["PC", "PlayStation", "Xbox"]
@@ -104,6 +178,8 @@ class TestApiBasic(unittest.TestCase):
 
         return query_json
 
+    # 建立 POST /v1/trackers 或相關測試會用到的 request body。
+    # 預設會放入合法 query_json，避免每個測試重複寫完整 payload。
     def _build_tracker_payload(
         self,
         name,
@@ -123,6 +199,8 @@ class TestApiBasic(unittest.TestCase):
             "is_active": is_active,
         }
 
+    # 建立 tracker 的共用 helper。
+    # 很多測試都要先有 tracker_id，例如 PATCH、DELETE、RUN、SUMMARY、GAMES、RUNS。
     def _create_tracker(
         self,
         name,
@@ -149,13 +227,17 @@ class TestApiBasic(unittest.TestCase):
 
         return tracker_id, data
 
+    # 執行單筆 tracker 的共用 helper。
+    # 成功後會產生 Run 紀錄與 GameMatch / Game 資料，後續 dashboard、runs、games 測試會用到。
     def _run_tracker_once(self, tracker_id):
         response = self.client.post("/v1/trackers/{0}/run".format(tracker_id))
 
         assert response.status_code == 200, response.json()
 
         return response.json()
-    
+
+    # 檢查 POST /v1/trackers 時 query_json 內部結構錯誤。
+    # 這裡測的是 service-level validation，所以通常預期 400，不是 Pydantic 422。
     def _assert_create_tracker_query_json_error(
         self,
         name,
@@ -170,54 +252,116 @@ class TestApiBasic(unittest.TestCase):
 
         response = self.client.post("/v1/trackers", json=payload)
 
-        assert response.status_code == expected_status_code, response.json()
+        self._assert_error_response(
+            response=response,
+            expected_status_code=expected_status_code,
+            expected_detail=expected_detail
+        )
 
-        data = response.json()
+    # 檢查 PATCH /v1/trackers/{tracker_id} 時 query_json 內部結構錯誤。
+    # 先建立一筆 tracker，再用錯誤 query_json 去 PATCH。
+    def _assert_update_tracker_query_json_error(
+        self,
+        query_json,
+        expected_detail,
+        expected_status_code=400
+    ):
+        tracker_id, _ = self._create_tracker(
+            name="Pytest Update Query JSON Validation Tracker"
+        )
 
-        assert "detail" in data
-        assert data.get("detail") == expected_detail
+        update_payload = {
+            "query_json": query_json
+        }
+
+        response = self.client.patch(
+            "/v1/trackers/{0}".format(tracker_id),
+            json=update_payload
+        )
+
+        self._assert_error_response(
+            response=response,
+            expected_status_code=expected_status_code,
+            expected_detail=expected_detail
+        )
 
     # =========================
-    # Basic API Tests
+    # System API Tests
     # =========================
 
-    def test_health(self):
-        response = self.client.get("/health")
+    # 測 system endpoint 的基本回應格式。
+    # /health 要回固定狀態；/v1/scheduler/status 要回 scheduler 狀態欄位。
+    def test_system_endpoints_return_expected_shape(self):
+        test_cases = [
+            {
+                "name": "Health check",
+                "method": "get",
+                "path": "/health",
+                "expected_status_code": 200,
+                "expected_body": {"status": "ok"},
+            },
+            {
+                "name": "Scheduler status",
+                "method": "get",
+                "path": "/v1/scheduler/status",
+                "expected_status_code": 200,
+                "required_keys": ["scheduler_running", "job_count", "jobs"],
+            },
+        ]
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok"})
+        # 使用 subTest 讓同一個 test function 可以跑多個 endpoint，
+        # 其中一個 case 失敗時也能知道是哪個 case 出錯。
+        for case in test_cases:
+            with self.subTest(case=case["name"]):
+                response = self._request(case["method"], case["path"])
 
-    def test_create_tracker(self):
-        tracker_id, data = self._create_tracker("Pytest Japan Tracker")
+                assert response.status_code == case["expected_status_code"], response.json()
 
-        assert tracker_id is not None
-        assert data.get("name") == "Pytest Japan Tracker"
-        assert data.get("source") == "mock"
-        assert data.get("update_frequency") == "daily"
-        assert data.get("is_active") is True
+                data = response.json()
 
-        query_json = data.get("query_json")
+                if "expected_body" in case:
+                    assert data == case["expected_body"]
 
-        assert isinstance(query_json, dict)
-        assert "target_game" in query_json
-        assert "user_review" in query_json
-        assert query_json["target_game"]["title"] == "Elden Ring"
+                if "required_keys" in case:
+                    for key in case["required_keys"]:
+                        assert key in data
 
-    def test_list_trackers(self):
-        response = self.client.get("/v1/trackers")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIsInstance(response.json(), list)
+                    assert data.get("scheduler_running") is True
+                    assert isinstance(data.get("jobs"), list)
+                    assert data.get("job_count") >= 2
 
     # =========================
     # Tracker CRUD Tests
     # =========================
 
-    def test_update_tracker(self):
-        tracker_id, _ = self._create_tracker("Pytest Update Tracker")
+    # 測 Tracker CRUD 成功流程。
+    # 把 create/list/get/update/delete 串成一個完整情境，避免每個 200 成功結果分散成太多重複 test。
+    def test_tracker_crud_success_flow(self):
+        tracker_id, created_data = self._create_tracker("Pytest CRUD Tracker")
+
+        assert created_data.get("name") == "Pytest CRUD Tracker"
+        assert created_data.get("source") == "mock"
+        assert created_data.get("update_frequency") == "daily"
+        assert created_data.get("is_active") is True
+
+        created_query_json = created_data.get("query_json")
+        assert isinstance(created_query_json, dict)
+        assert created_query_json["target_game"]["title"] == "Elden Ring"
+        assert "user_review" in created_query_json
+
+        list_response = self.client.get("/v1/trackers")
+        self._assert_list_response(list_response)
+
+        get_response = self.client.get("/v1/trackers/{0}".format(tracker_id))
+        assert get_response.status_code == 200, get_response.json()
+
+        get_data = get_response.json()
+        assert get_data.get("id") == tracker_id
+        assert isinstance(get_data.get("query_json"), dict)
+        assert get_data["query_json"]["target_game"]["title"] == "Elden Ring"
 
         update_payload = {
-            "name": "Pytest Updated Tracker",
+            "name": "Pytest Updated CRUD Tracker",
             "update_frequency": "weekly",
             "is_active": False,
         }
@@ -232,43 +376,22 @@ class TestApiBasic(unittest.TestCase):
         updated_data = update_response.json()
 
         assert updated_data.get("id") == tracker_id
-        assert updated_data.get("name") == "Pytest Updated Tracker"
+        assert updated_data.get("name") == "Pytest Updated CRUD Tracker"
         assert updated_data.get("update_frequency") == "weekly"
         assert updated_data.get("is_active") is False
 
-    def test_delete_tracker(self):
-        tracker_id, _ = self._create_tracker("Pytest Delete Tracker")
-
         delete_response = self.client.delete("/v1/trackers/{0}".format(tracker_id))
-        self.assertEqual(delete_response.status_code, 200)
+        assert delete_response.status_code == 200, delete_response.json()
 
-        get_response = self.client.get("/v1/trackers/{0}".format(tracker_id))
-        self.assertEqual(get_response.status_code, 404)
+        deleted_get_response = self.client.get("/v1/trackers/{0}".format(tracker_id))
+        self._assert_error_response(
+            response=deleted_get_response,
+            expected_status_code=404,
+            expected_detail="Tracker not found"
+        )
 
-    def test_get_missing_tracker(self):
-        response = self.client.get("/v1/trackers/999999")
-
-        self.assertEqual(response.status_code, 404)
-
-        data = response.json()
-        self.assertIn("detail", data)
-        self.assertEqual(data.get("detail"), "Tracker not found")
-
-    def test_get_tracker_returns_query_json_object(self):
-        tracker_id, _ = self._create_tracker("Pytest Get Tracker Query JSON")
-
-        response = self.client.get("/v1/trackers/{0}".format(tracker_id))
-
-        assert response.status_code == 200, response.json()
-
-        data = response.json()
-        query_json = data.get("query_json")
-
-        assert isinstance(query_json, dict)
-        assert "target_game" in query_json
-        assert query_json["target_game"]["title"] == "Elden Ring"
-        assert "user_review" in query_json
-
+    # 測 PATCH 更新 query_json object。
+    # 重點是確認 query_json 可以用 object 更新，而且回傳時仍然是 dict/object，不是 JSON 字串。
     def test_update_tracker_query_json_object(self):
         tracker_id, _ = self._create_tracker("Pytest Update Query JSON Tracker")
 
@@ -318,15 +441,53 @@ class TestApiBasic(unittest.TestCase):
     # Tracker Run Flow Tests
     # =========================
 
-    def test_run_tracker(self):
-        tracker_id, _ = self._create_tracker("Pytest Run Tracker")
+    # 測 tracker run 成功後的資料流。
+    # 執行 tracker 後，再一起檢查 runs、games、dashboard recent-runs、dashboard recent-games 的 list 回應。
+    def test_tracker_run_success_flow(self):
+        tracker_id, _ = self._create_tracker("Pytest Run Flow Tracker")
 
         run_data = self._run_tracker_once(tracker_id)
 
-        self.assertEqual(run_data.get("tracker_id"), tracker_id)
-        self.assertIn("inserted_games", run_data)
-        self.assertIn("matched_games", run_data)
+        assert run_data.get("tracker_id") == tracker_id
+        assert "inserted_games" in run_data
+        assert "matched_games" in run_data
 
+        # 這些 endpoint 都是 tracker run 成功後才會有資料，
+        # 所以放在同一個成功流程裡檢查。
+        endpoint_cases = [
+            {
+                "name": "Tracker runs endpoint",
+                "path": "/v1/trackers/{0}/runs".format(tracker_id),
+                "required_keys": ["id", "tracker_id", "status", "started_at"],
+            },
+            {
+                "name": "Tracker games endpoint",
+                "path": "/v1/trackers/{0}/games".format(tracker_id),
+                "required_keys": ["id", "external_id", "title", "source"],
+            },
+            {
+                "name": "Dashboard recent runs",
+                "path": "/v1/dashboard/recent-runs",
+                "required_keys": ["id", "tracker_id", "status"],
+            },
+            {
+                "name": "Dashboard recent games",
+                "path": "/v1/dashboard/recent-games",
+                "required_keys": ["id", "external_id", "title", "source"],
+            },
+        ]
+
+        for case in endpoint_cases:
+            with self.subTest(case=case["name"]):
+                response = self.client.get(case["path"])
+                self._assert_list_response(
+                    response=response,
+                    min_length=1,
+                    required_keys=case["required_keys"]
+                )
+
+    # 測 tracker summary 回應。
+    # summary 結構比較特殊，會包含 tracker 基本資料、matched_games_count、latest_run，所以保留獨立測試。
     def test_tracker_summary(self):
         tracker_id, _ = self._create_tracker("Pytest Summary Tracker")
 
@@ -349,156 +510,94 @@ class TestApiBasic(unittest.TestCase):
         assert "target_game" in query_json
         assert query_json["target_game"]["title"] == "Elden Ring"
 
-    def test_tracker_runs_endpoint(self):
-        tracker_id, _ = self._create_tracker("Pytest Tracker Runs Endpoint")
-
-        self._run_tracker_once(tracker_id)
-
-        runs_response = self.client.get("/v1/trackers/{0}/runs".format(tracker_id))
-        self.assertEqual(runs_response.status_code, 200)
-
-        runs_data = runs_response.json()
-
-        self.assertIsInstance(runs_data, list)
-        self.assertTrue(len(runs_data) >= 1)
-
-        first_item = runs_data[0]
-        self.assertIn("id", first_item)
-        self.assertIn("tracker_id", first_item)
-        self.assertIn("status", first_item)
-        self.assertIn("started_at", first_item)
-
-    def test_tracker_games_endpoint(self):
-        tracker_id, _ = self._create_tracker("Pytest Tracker Games Endpoint")
-
-        self._run_tracker_once(tracker_id)
-
-        games_response = self.client.get("/v1/trackers/{0}/games".format(tracker_id))
-        self.assertEqual(games_response.status_code, 200)
-
-        games_data = games_response.json()
-
-        self.assertIsInstance(games_data, list)
-        self.assertTrue(len(games_data) >= 1)
-
-        first_item = games_data[0]
-        self.assertIn("id", first_item)
-        self.assertIn("external_id", first_item)
-        self.assertIn("title", first_item)
-        self.assertIn("source", first_item)
-
     # =========================
     # Dashboard API Tests
     # =========================
 
-    def test_dashboard_summary(self):
-        response = self.client.get("/v1/dashboard/summary")
-
-        self.assertEqual(response.status_code, 200)
-
-        data = response.json()
-
-        self.assertIn("tracker_count", data)
-        self.assertIn("active_tracker_count", data)
-        self.assertIn("game_count", data)
-        self.assertIn("run_count", data)
-
-    def test_dashboard_recent_runs(self):
-        tracker_id, _ = self._create_tracker("Pytest Recent Runs Tracker")
-
-        self._run_tracker_once(tracker_id)
-
-        recent_runs_response = self.client.get("/v1/dashboard/recent-runs")
-        self.assertEqual(recent_runs_response.status_code, 200)
-
-        recent_runs_data = recent_runs_response.json()
-
-        self.assertIsInstance(recent_runs_data, list)
-        self.assertTrue(len(recent_runs_data) >= 1)
-
-        first_item = recent_runs_data[0]
-        self.assertIn("id", first_item)
-        self.assertIn("tracker_id", first_item)
-        self.assertIn("status", first_item)
-
-    def test_dashboard_recent_games(self):
-        tracker_id, _ = self._create_tracker("Pytest Recent Games Tracker")
-
-        self._run_tracker_once(tracker_id)
-
-        recent_games_response = self.client.get("/v1/dashboard/recent-games")
-        self.assertEqual(recent_games_response.status_code, 200)
-
-        recent_games_data = recent_games_response.json()
-
-        self.assertIsInstance(recent_games_data, list)
-        self.assertTrue(len(recent_games_data) >= 1)
-
-        first_item = recent_games_data[0]
-        self.assertIn("id", first_item)
-        self.assertIn("external_id", first_item)
-        self.assertIn("title", first_item)
-        self.assertIn("source", first_item)
-
-    def test_dashboard_active_trackers(self):
+    # 測 Dashboard API 的基本回應格式。
+    # summary 是 object；active-trackers 是 list，兩者用同一個 table-driven test 管理。
+    def test_dashboard_endpoints_return_expected_shape(self):
         self._create_tracker("Pytest Active Tracker")
 
-        active_response = self.client.get("/v1/dashboard/active-trackers")
-        self.assertEqual(active_response.status_code, 200)
+        endpoint_cases = [
+            {
+                "name": "Dashboard summary",
+                "method": "get",
+                "path": "/v1/dashboard/summary",
+                "response_type": "object",
+                "required_keys": [
+                    "tracker_count",
+                    "active_tracker_count",
+                    "game_count",
+                    "run_count",
+                ],
+            },
+            {
+                "name": "Dashboard active trackers",
+                "method": "get",
+                "path": "/v1/dashboard/active-trackers",
+                "response_type": "list",
+                "required_keys": ["id", "name", "update_frequency", "is_active"],
+            },
+        ]
 
-        active_data = active_response.json()
+        for case in endpoint_cases:
+            with self.subTest(case=case["name"]):
+                response = self._request(case["method"], case["path"])
 
-        self.assertIsInstance(active_data, list)
-        self.assertTrue(len(active_data) >= 1)
+                assert response.status_code == 200, response.json()
 
-        first_item = active_data[0]
-        self.assertIn("id", first_item)
-        self.assertIn("name", first_item)
-        self.assertIn("update_frequency", first_item)
-        self.assertIn("is_active", first_item)
+                data = response.json()
+
+                if case["response_type"] == "object":
+                    assert isinstance(data, dict)
+                    for key in case["required_keys"]:
+                        assert key in data
+
+                if case["response_type"] == "list":
+                    assert isinstance(data, list)
+                    assert len(data) >= 1
+                    for key in case["required_keys"]:
+                        assert key in data[0]
 
     # =========================
     # Frequency Rule Tests
     # =========================
 
-    def test_active_trackers_by_frequency(self):
+    # 測 update_frequency 成功規則。
+    # active/daily 應該查得到 daily tracker；run/daily 應該批次執行 daily trackers。
+    def test_frequency_rule_success_cases(self):
         self._create_tracker("Pytest Daily Tracker", update_frequency="daily")
         self._create_tracker("Pytest Weekly Tracker", update_frequency="weekly")
 
-        response_daily = self.client.get("/v1/trackers/active/daily")
-        self.assertEqual(response_daily.status_code, 200)
+        daily_active_response = self.client.get("/v1/trackers/active/daily")
+        daily_active_data = self._assert_list_response(
+            response=daily_active_response,
+            min_length=1,
+            required_keys=["id", "name", "update_frequency"]
+        )
 
-        daily_data = response_daily.json()
-        self.assertIsInstance(daily_data, list)
-        self.assertTrue(len(daily_data) >= 1)
+        assert any(
+            item.get("update_frequency") == "daily"
+            for item in daily_active_data
+        )
 
-        first_item = daily_data[0]
-        self.assertIn("id", first_item)
-        self.assertIn("name", first_item)
-        self.assertIn("update_frequency", first_item)
-        self.assertEqual(first_item.get("update_frequency"), "daily")
-
-    def test_run_trackers_by_frequency(self):
         self._create_tracker("Pytest Batch Daily Tracker 1", update_frequency="daily")
         self._create_tracker("Pytest Batch Daily Tracker 2", update_frequency="daily")
         self._create_tracker("Pytest Batch Weekly Tracker", update_frequency="weekly")
 
         batch_response = self.client.post("/v1/trackers/run/daily")
-        self.assertEqual(batch_response.status_code, 200)
+        batch_data = self._assert_list_response(
+            response=batch_response,
+            min_length=2,
+            required_keys=["tracker_id", "name", "status", "inserted_games", "matched_games"]
+        )
 
-        batch_data = batch_response.json()
+        assert all("error" in item for item in batch_data)
 
-        self.assertIsInstance(batch_data, list)
-        self.assertTrue(len(batch_data) >= 2)
-
-        first_item = batch_data[0]
-        self.assertIn("tracker_id", first_item)
-        self.assertIn("name", first_item)
-        self.assertIn("status", first_item)
-        self.assertIn("inserted_games", first_item)
-        self.assertIn("matched_games", first_item)
-
-    def test_inactive_tracker_not_in_active_or_batch_run(self):
+    # 測 inactive 與 manual tracker 的 frequency 規則。
+    # inactive tracker 不應出現在 active list / batch run；manual tracker 不應進 daily/weekly batch，但可以單筆 run。
+    def test_inactive_and_manual_tracker_frequency_rules(self):
         self._create_tracker(
             "Pytest Active Daily Tracker",
             update_frequency="daily",
@@ -509,357 +608,296 @@ class TestApiBasic(unittest.TestCase):
             update_frequency="daily",
             is_active=False
         )
-
-        active_list_response = self.client.get("/v1/trackers/active/daily")
-        self.assertEqual(active_list_response.status_code, 200)
-
-        active_list_data = active_list_response.json()
-        self.assertIsInstance(active_list_data, list)
-
-        inactive_ids = [item.get("id") for item in active_list_data]
-        self.assertTrue(inactive_tracker_id not in inactive_ids)
-
-        batch_response = self.client.post("/v1/trackers/run/daily")
-        self.assertEqual(batch_response.status_code, 200)
-
-        batch_data = batch_response.json()
-        self.assertIsInstance(batch_data, list)
-
-        batch_tracker_ids = [item.get("tracker_id") for item in batch_data]
-        self.assertTrue(inactive_tracker_id not in batch_tracker_ids)
-
-    def test_manual_tracker_not_in_daily_or_weekly_batch_run(self):
-        tracker_id, _ = self._create_tracker(
+        manual_tracker_id, _ = self._create_tracker(
             "Pytest Manual Tracker",
             update_frequency="manual",
             is_active=True
         )
 
-        daily_response = self.client.post("/v1/trackers/run/daily")
-        self.assertEqual(daily_response.status_code, 200)
+        active_list_response = self.client.get("/v1/trackers/active/daily")
+        active_list_data = self._assert_list_response(active_list_response)
 
-        daily_data = daily_response.json()
-        self.assertIsInstance(daily_data, list)
+        active_tracker_ids = [item.get("id") for item in active_list_data]
+        assert inactive_tracker_id not in active_tracker_ids
 
-        daily_tracker_ids = [item.get("tracker_id") for item in daily_data]
-        self.assertTrue(tracker_id not in daily_tracker_ids)
+        batch_cases = [
+            {
+                "name": "Daily batch excludes inactive and manual trackers",
+                "path": "/v1/trackers/run/daily",
+                "excluded_tracker_ids": [inactive_tracker_id, manual_tracker_id],
+            },
+            {
+                "name": "Weekly batch excludes manual tracker",
+                "path": "/v1/trackers/run/weekly",
+                "excluded_tracker_ids": [manual_tracker_id],
+            },
+        ]
 
-        weekly_response = self.client.post("/v1/trackers/run/weekly")
-        self.assertEqual(weekly_response.status_code, 200)
+        for case in batch_cases:
+            with self.subTest(case=case["name"]):
+                response = self.client.post(case["path"])
+                batch_data = self._assert_list_response(response)
 
-        weekly_data = weekly_response.json()
-        self.assertIsInstance(weekly_data, list)
+                batch_tracker_ids = [item.get("tracker_id") for item in batch_data]
 
-        weekly_tracker_ids = [item.get("tracker_id") for item in weekly_data]
-        self.assertTrue(tracker_id not in weekly_tracker_ids)
+                for tracker_id in case["excluded_tracker_ids"]:
+                    assert tracker_id not in batch_tracker_ids
 
-    def test_manual_tracker_can_run_single(self):
-        tracker_id, _ = self._create_tracker(
-            "Pytest Manual Single Run Tracker",
-            update_frequency="manual",
-            is_active=True
-        )
+        manual_run_data = self._run_tracker_once(manual_tracker_id)
 
-        run_data = self._run_tracker_once(tracker_id)
-
-        self.assertEqual(run_data.get("tracker_id"), tracker_id)
-        self.assertIn("inserted_games", run_data)
-        self.assertIn("matched_games", run_data)
+        assert manual_run_data.get("tracker_id") == manual_tracker_id
+        assert "inserted_games" in manual_run_data
+        assert "matched_games" in manual_run_data
 
     # =========================
     # Validation / Error Tests
     # =========================
 
-    def test_create_tracker_invalid_query_json(self):
-        payload = self._build_tracker_payload(
-            name="Pytest Invalid Query JSON",
-            query_json="{invalid_json}"
-        )
-
-        response = self.client.post("/v1/trackers", json=payload)
-
-        assert response.status_code == 422, response.json()
-
-        data = response.json()
-
-        assert "detail" in data
-
-
-    def test_create_tracker_invalid_update_frequency(self):
-        payload = self._build_tracker_payload(
-            name="Pytest Invalid Frequency",
-            update_frequency="hourly"
-        )
-
-        response = self.client.post("/v1/trackers", json=payload)
-
-        assert response.status_code == 422, response.json()
-
-        data = response.json()
-
-        assert "detail" in data
-
-        error_locs = [
-            error.get("loc", [])
-            for error in data.get("detail", [])
-        ]
-
-        assert any("update_frequency" in loc for loc in error_locs)
-
-
-    def test_create_tracker_unsupported_query_json_key(self):
-        query_json = self._build_query_json(
-            unknown_key="not allowed"
-        )
-
-        self._assert_create_tracker_query_json_error(
-            name="Pytest Unsupported Query JSON Key",
-            query_json=query_json,
-            expected_detail="Unsupported query_json keys: ['unknown_key']"
-        )
-
-
-    def test_create_tracker_invalid_query_json_field_types(self):
-        test_cases = [
-            {
-                "name": "Pytest Invalid Target Game Type",
-                "query_json": self._build_query_json(
-                    target_game="Elden Ring"
-                ),
-                "expected_detail": "target_game must be an object",
-            },
-            {
-                "name": "Pytest Invalid Sources To Check Type",
-                "query_json": self._build_query_json(
-                    sources_to_check="mock"
-                ),
-                "expected_detail": "sources_to_check must be a list",
-            },
-            {
-                "name": "Pytest Invalid Regions Type",
-                "query_json": self._build_query_json(
-                    regions="japan"
-                ),
-                "expected_detail": "regions must be a list",
-            },
-            {
-                "name": "Pytest Invalid Genres Type",
-                "query_json": self._build_query_json(
-                    genres="Action RPG"
-                ),
-                "expected_detail": "genres must be a list",
-            },
-            {
-                "name": "Pytest Invalid Platforms Type",
-                "query_json": self._build_query_json(
-                    platforms="PC"
-                ),
-                "expected_detail": "platforms must be a list",
-            },
-            {
-                "name": "Pytest Invalid User Review Type",
-                "query_json": self._build_query_json(
-                    user_review="good game"
-                ),
-                "expected_detail": "user_review must be an object",
-            },
-            {
-                "name": "Pytest Invalid Games Type",
-                "query_json": self._build_query_json(
-                    games="Elden Ring"
-                ),
-                "expected_detail": "games must be a list",
-            },
-            {
-                "name": "Pytest Invalid Studios Type",
-                "query_json": self._build_query_json(
-                    studios="FromSoftware"
-                ),
-                "expected_detail": "studios must be a list",
-            },
-            {
-                "name": "Pytest Invalid Is Indie Type",
-                "query_json": self._build_query_json(
-                    is_indie="false"
-                ),
-                "expected_detail": "is_indie must be a boolean",
-            },
-        ]
-
-        for case in test_cases:
-            with self.subTest(case=case["name"]):
-                self._assert_create_tracker_query_json_error(
-                    name=case["name"],
-                    query_json=case["query_json"],
-                    expected_detail=case["expected_detail"]
-                )
-
-    def _assert_update_tracker_query_json_error(
-        self,
-        query_json,
-        expected_detail,
-        expected_status_code=400
-    ):
-        tracker_id, _ = self._create_tracker(
-            name="Pytest Update Query JSON Validation Tracker"
-        )
-
-        update_payload = {
-            "query_json": query_json
-        }
-
-        response = self.client.patch(
-            "/v1/trackers/{0}".format(tracker_id),
-            json=update_payload
-        )
-
-        assert response.status_code == expected_status_code, response.json()
-
-        data = response.json()
-
-        assert "detail" in data
-        assert data.get("detail") == expected_detail
-
-    def test_update_tracker_invalid_query_json_field_types(self):
-        test_cases = [
-            {
-                "name": "Pytest Update Invalid Target Game Type",
-                "query_json": self._build_query_json(
-                    target_game="Elden Ring"
-                ),
-                "expected_detail": "target_game must be an object",
-            },
-            {
-                "name": "Pytest Update Invalid Sources To Check Type",
-                "query_json": self._build_query_json(
-                    sources_to_check="mock"
-                ),
-                "expected_detail": "sources_to_check must be a list",
-            },
-            {
-                "name": "Pytest Update Invalid Regions Type",
-                "query_json": self._build_query_json(
-                    regions="japan"
-                ),
-                "expected_detail": "regions must be a list",
-            },
-            {
-                "name": "Pytest Update Invalid Genres Type",
-                "query_json": self._build_query_json(
-                    genres="Action RPG"
-                ),
-                "expected_detail": "genres must be a list",
-            },
-            {
-                "name": "Pytest Update Invalid Platforms Type",
-                "query_json": self._build_query_json(
-                    platforms="PC"
-                ),
-                "expected_detail": "platforms must be a list",
-            },
-            {
-                "name": "Pytest Update Invalid User Review Type",
-                "query_json": self._build_query_json(
-                    user_review="good game"
-                ),
-                "expected_detail": "user_review must be an object",
-            },
-            {
-                "name": "Pytest Update Invalid Games Type",
-                "query_json": self._build_query_json(
-                    games="Elden Ring"
-                ),
-                "expected_detail": "games must be a list",
-            },
-            {
-                "name": "Pytest Update Invalid Studios Type",
-                "query_json": self._build_query_json(
-                    studios="FromSoftware"
-                ),
-                "expected_detail": "studios must be a list",
-            },
-            {
-                "name": "Pytest Update Invalid Is Indie Type",
-                "query_json": self._build_query_json(
-                    is_indie="false"
-                ),
-                "expected_detail": "is_indie must be a boolean",
-            },
-        ]
-
-        for case in test_cases:
-            with self.subTest(case=case["name"]):
-                self._assert_update_tracker_query_json_error(
-                    query_json=case["query_json"],
-                    expected_detail=case["expected_detail"]
-                )
-
-    def test_update_tracker_unsupported_query_json_key(self):
-        query_json = self._build_query_json(
-            unknown_key="not allowed"
-        )
-
-        self._assert_update_tracker_query_json_error(
-            query_json=query_json,
-            expected_detail="Unsupported query_json keys: ['unknown_key']"
-        )
-    
-    def test_update_tracker_invalid_update_frequency(self):
+    # 測 request body schema 錯誤，預期由 FastAPI / Pydantic 回 422。
+    # 這裡不是 service-level 400；包含 query_json 本身型別錯、body update_frequency 無效。
+    def test_request_body_schema_errors_return_422(self):
         tracker_id, _ = self._create_tracker(
             name="Pytest Update Invalid Frequency Tracker"
         )
 
-        update_payload = {
-            "update_frequency": "hourly"
-        }
-
-        response = self.client.patch(
-            "/v1/trackers/{0}".format(tracker_id),
-            json=update_payload
-        )
-
-        assert response.status_code == 422, response.json()
-
-        data = response.json()
-
-        assert "detail" in data
-
-        error_locs = [
-            error.get("loc", [])
-            for error in data.get("detail", [])
+        test_cases = [
+            {
+                "name": "POST /v1/trackers with query_json as string",
+                "method": "post",
+                "path": "/v1/trackers",
+                "json_body": self._build_tracker_payload(
+                    name="Pytest Invalid Query JSON",
+                    query_json="{invalid_json}"
+                ),
+                "expected_field": "query_json",
+            },
+            {
+                "name": "POST /v1/trackers with update_frequency = hourly",
+                "method": "post",
+                "path": "/v1/trackers",
+                "json_body": self._build_tracker_payload(
+                    name="Pytest Invalid Frequency",
+                    update_frequency="hourly"
+                ),
+                "expected_field": "update_frequency",
+            },
+            {
+                "name": "PATCH /v1/trackers/{tracker_id} with update_frequency = hourly",
+                "method": "patch",
+                "path": "/v1/trackers/{0}".format(tracker_id),
+                "json_body": {
+                    "update_frequency": "hourly"
+                },
+                "expected_field": "update_frequency",
+            },
         ]
 
-        assert any("update_frequency" in loc for loc in error_locs)
-    
-    def test_update_missing_tracker(self):
-        update_payload = {
-            "name": "Pytest Missing Updated Tracker",
-            "update_frequency": "weekly",
-            "is_active": False,
-        }
+        for case in test_cases:
+            with self.subTest(case=case["name"]):
+                response = self._request(
+                    method=case["method"],
+                    path=case["path"],
+                    json_body=case["json_body"]
+                )
 
-        response = self.client.patch(
-            "/v1/trackers/999999",
-            json=update_payload
-        )
+                self._assert_error_response(
+                    response=response,
+                    expected_status_code=422,
+                    expected_field=case["expected_field"]
+                )
 
-        assert response.status_code == 404, response.json()
+    # 測 query_json 多出不支援欄位 unknown_key。
+    # POST 建立與 PATCH 更新都應該走同一個 service-level validation，回 400。
+    def test_unsupported_query_json_key_returns_400(self):
+        test_cases = [
+            {
+                "name": "POST /v1/trackers query_json.unknown_key",
+                "operation": "create",
+            },
+            {
+                "name": "PATCH /v1/trackers/{tracker_id} query_json.unknown_key",
+                "operation": "update",
+            },
+        ]
 
-        data = response.json()
+        expected_detail = "Unsupported query_json keys: ['unknown_key']"
 
-        assert "detail" in data
-        assert data.get("detail") == "Tracker not found"
+        for case in test_cases:
+            with self.subTest(case=case["name"]):
+                query_json = self._build_query_json(
+                    unknown_key="not allowed"
+                )
 
-    def test_delete_missing_tracker(self):
-        response = self.client.delete("/v1/trackers/999999")
+                if case["operation"] == "create":
+                    self._assert_create_tracker_query_json_error(
+                        name="Pytest Unsupported Query JSON Key",
+                        query_json=query_json,
+                        expected_detail=expected_detail
+                    )
 
-        assert response.status_code == 404, response.json()
+                if case["operation"] == "update":
+                    self._assert_update_tracker_query_json_error(
+                        query_json=query_json,
+                        expected_detail=expected_detail
+                    )
 
-        data = response.json()
+    # 測 query_json 內部欄位型別錯誤，預期回 400。
+    # 使用雙層 table-driven test：同一批欄位錯誤同時測 POST create 與 PATCH update。
+    def test_invalid_query_json_field_types_return_400(self):
+        # 每個 field_case 代表一種 query_json 欄位型別錯誤。
+        field_cases = [
+            {
+                "field_name": "target_game",
+                "query_json": self._build_query_json(target_game="Elden Ring"),
+                "expected_detail": "target_game must be an object",
+            },
+            {
+                "field_name": "sources_to_check",
+                "query_json": self._build_query_json(sources_to_check="mock"),
+                "expected_detail": "sources_to_check must be a list",
+            },
+            {
+                "field_name": "regions",
+                "query_json": self._build_query_json(regions="japan"),
+                "expected_detail": "regions must be a list",
+            },
+            {
+                "field_name": "genres",
+                "query_json": self._build_query_json(genres="Action RPG"),
+                "expected_detail": "genres must be a list",
+            },
+            {
+                "field_name": "platforms",
+                "query_json": self._build_query_json(platforms="PC"),
+                "expected_detail": "platforms must be a list",
+            },
+            {
+                "field_name": "user_review",
+                "query_json": self._build_query_json(user_review="good game"),
+                "expected_detail": "user_review must be an object",
+            },
+            {
+                "field_name": "games",
+                "query_json": self._build_query_json(games="Elden Ring"),
+                "expected_detail": "games must be a list",
+            },
+            {
+                "field_name": "studios",
+                "query_json": self._build_query_json(studios="FromSoftware"),
+                "expected_detail": "studios must be a list",
+            },
+            {
+                "field_name": "is_indie",
+                "query_json": self._build_query_json(is_indie="false"),
+                "expected_detail": "is_indie must be a boolean",
+            },
+        ]
 
-        assert "detail" in data
-        assert data.get("detail") == "Tracker not found"
+        # 同一批欄位錯誤要同時套用到建立與更新，
+        # 這樣就不用把 create/update 各寫一份重複測試。
+        operation_cases = [
+            {
+                "name": "POST /v1/trackers",
+                "operation": "create",
+            },
+            {
+                "name": "PATCH /v1/trackers/{tracker_id}",
+                "operation": "update",
+            },
+        ]
 
+        for operation_case in operation_cases:
+            for field_case in field_cases:
+                with self.subTest(
+                    operation=operation_case["name"],
+                    field=field_case["field_name"]
+                ):
+                    if operation_case["operation"] == "create":
+                        self._assert_create_tracker_query_json_error(
+                            name="Pytest Invalid {0} Type".format(field_case["field_name"]),
+                            query_json=field_case["query_json"],
+                            expected_detail=field_case["expected_detail"]
+                        )
+
+                    if operation_case["operation"] == "update":
+                        self._assert_update_tracker_query_json_error(
+                            query_json=field_case["query_json"],
+                            expected_detail=field_case["expected_detail"]
+                        )
+
+    # 測 tracker_id 不存在時的 404。
+    # GET / PATCH / DELETE 都是同一種錯誤規則：path parameter tracker_id 找不到資料。
+    def test_missing_tracker_paths_return_404(self):
+        test_cases = [
+            {
+                "name": "GET /v1/trackers/{tracker_id}",
+                "method": "get",
+                "path": "/v1/trackers/999999",
+            },
+            {
+                "name": "PATCH /v1/trackers/{tracker_id}",
+                "method": "patch",
+                "path": "/v1/trackers/999999",
+                "json_body": {
+                    "name": "Pytest Missing Updated Tracker",
+                    "update_frequency": "weekly",
+                    "is_active": False,
+                },
+            },
+            {
+                "name": "DELETE /v1/trackers/{tracker_id}",
+                "method": "delete",
+                "path": "/v1/trackers/999999",
+            },
+        ]
+
+        for case in test_cases:
+            with self.subTest(case=case["name"]):
+                response = self._request(
+                    method=case["method"],
+                    path=case["path"],
+                    json_body=case.get("json_body")
+                )
+
+                self._assert_error_response(
+                    response=response,
+                    expected_status_code=404,
+                    expected_detail="Tracker not found"
+                )
+
+    # 測 path parameter update_frequency 無效時的 400。
+    # 這跟 request body update_frequency 無效不同；body 錯是 422，path 錯是 service-level 400。
+    def test_invalid_update_frequency_path_returns_400(self):
+        test_cases = [
+            {
+                "name": "GET /v1/trackers/active/hourly",
+                "method": "get",
+                "path": "/v1/trackers/active/hourly",
+            },
+            {
+                "name": "POST /v1/trackers/run/hourly",
+                "method": "post",
+                "path": "/v1/trackers/run/hourly",
+            },
+        ]
+
+        expected_detail = "update_frequency must be one of ['daily', 'manual', 'weekly']"
+
+        for case in test_cases:
+            with self.subTest(case=case["name"]):
+                response = self._request(
+                    method=case["method"],
+                    path=case["path"]
+                )
+
+                self._assert_error_response(
+                    response=response,
+                    expected_status_code=400,
+                    expected_detail=expected_detail
+                )
+
+    # 測 unsupported source 的錯誤流程與 Run 副作用。
+    # tracker.source = steam 目前不支援，API 應回 400，同時 Run.status 要記成 failed。
     def test_run_tracker_unsupported_source_records_failed_run(self):
         tracker_id, _ = self._create_tracker(
             name="Pytest Unsupported Source Tracker",
@@ -870,23 +908,20 @@ class TestApiBasic(unittest.TestCase):
             "/v1/trackers/{0}/run".format(tracker_id)
         )
 
-        assert response.status_code == 400, response.json()
-
-        data = response.json()
-
-        assert "detail" in data
-        assert data.get("detail") == "Unsupported source: steam"
+        self._assert_error_response(
+            response=response,
+            expected_status_code=400,
+            expected_detail="Unsupported source: steam"
+        )
 
         runs_response = self.client.get(
             "/v1/trackers/{0}/runs".format(tracker_id)
         )
 
-        assert runs_response.status_code == 200, runs_response.json()
-
-        runs_data = runs_response.json()
-
-        assert isinstance(runs_data, list)
-        assert len(runs_data) >= 1
+        runs_data = self._assert_list_response(
+            response=runs_response,
+            min_length=1
+        )
 
         latest_run = runs_data[0]
 
@@ -894,25 +929,6 @@ class TestApiBasic(unittest.TestCase):
         assert latest_run.get("status") == "failed"
         assert latest_run.get("error_message") == "Unsupported source: steam"
 
-    def test_active_trackers_invalid_update_frequency_path(self):
-        response = self.client.get("/v1/trackers/active/hourly")
-
-        assert response.status_code == 400, response.json()
-
-        data = response.json()
-
-        assert "detail" in data
-        assert data.get("detail") == "update_frequency must be one of ['daily', 'manual', 'weekly']"
-
-    def test_run_trackers_invalid_update_frequency_path(self):
-        response = self.client.post("/v1/trackers/run/hourly")
-
-        assert response.status_code == 400, response.json()
-
-        data = response.json()
-
-        assert "detail" in data
-        assert data.get("detail") == "update_frequency must be one of ['daily', 'manual', 'weekly']"
 
 if __name__ == "__main__":
     unittest.main()

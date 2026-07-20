@@ -2,8 +2,8 @@
 # 2. 使用獨立 SQLite 測試資料庫，避免影響正式資料庫。
 # 3. 把相同類型的 200 / 400 / 404 / 422 回應合併成 table-driven tests，
 #    避免每個 endpoint 都寫一個重複的 test function。
-# 4. 驗證 tracker CRUD、tracker run、dashboard、frequency rules、query_json validation、
-#    missing tracker、unsupported source 等基本流程。
+# 4. 驗證 tracker CRUD、tracker run、dashboard、frequency rules、schema validation、
+#    query_json validation、missing tracker 等基本流程。
 import os, unittest
 
 from fastapi.testclient import TestClient
@@ -653,11 +653,12 @@ class TestApiBasic(unittest.TestCase):
     # Validation / Error Tests
     # =========================
 
-    # 測 request body schema 錯誤，預期由 FastAPI / Pydantic 回 422。
-    # 這裡不是 service-level 400；包含 query_json 本身型別錯、body update_frequency 無效。
-    def test_request_body_schema_errors_return_422(self):
+    # 測 schema-level 錯誤，預期由 FastAPI / Pydantic 回 422。
+    # 包含 request body 欄位型別錯、Enum 值錯，以及 path parameter Enum 值錯。
+    # 這裡不是 service-level 400。
+    def test_schema_errors_return_422(self):
         tracker_id, _ = self._create_tracker(
-            name="Pytest Update Invalid Frequency Tracker"
+            name="Pytest Schema Validation Tracker"
         )
 
         test_cases = [
@@ -670,6 +671,25 @@ class TestApiBasic(unittest.TestCase):
                     query_json="{invalid_json}"
                 ),
                 "expected_field": "query_json",
+            },
+            {
+                "name": "POST /v1/trackers with source = steam",
+                "method": "post",
+                "path": "/v1/trackers",
+                "json_body": self._build_tracker_payload(
+                    name="Pytest Invalid Source",
+                    source="steam"
+                ),
+                "expected_field": "source",
+            },
+            {
+                "name": "PATCH /v1/trackers/{tracker_id} with source = steam",
+                "method": "patch",
+                "path": "/v1/trackers/{0}".format(tracker_id),
+                "json_body": {
+                    "source": "steam"
+                },
+                "expected_field": "source",
             },
             {
                 "name": "POST /v1/trackers with update_frequency = hourly",
@@ -690,6 +710,18 @@ class TestApiBasic(unittest.TestCase):
                 },
                 "expected_field": "update_frequency",
             },
+            {
+                "name": "GET /v1/trackers/active/hourly",
+                "method": "get",
+                "path": "/v1/trackers/active/hourly",
+                "expected_field": "update_frequency",
+            },
+            {
+                "name": "POST /v1/trackers/run/hourly",
+                "method": "post",
+                "path": "/v1/trackers/run/hourly",
+                "expected_field": "update_frequency",
+            },
         ]
 
         for case in test_cases:
@@ -697,7 +729,7 @@ class TestApiBasic(unittest.TestCase):
                 response = self._request(
                     method=case["method"],
                     path=case["path"],
-                    json_body=case["json_body"]
+                    json_body=case.get("json_body")
                 )
 
                 self._assert_error_response(
@@ -705,6 +737,7 @@ class TestApiBasic(unittest.TestCase):
                     expected_status_code=422,
                     expected_field=case["expected_field"]
                 )
+
 
     # 測 query_json 多出不支援欄位 unknown_key。
     # POST 建立與 PATCH 更新都應該走同一個 service-level validation，回 400。
@@ -864,70 +897,6 @@ class TestApiBasic(unittest.TestCase):
                     expected_status_code=404,
                     expected_detail="Tracker not found"
                 )
-
-    # 測 path parameter update_frequency 無效時的 400。
-    # 這跟 request body update_frequency 無效不同；body 錯是 422，path 錯是 service-level 400。
-    def test_invalid_update_frequency_path_returns_400(self):
-        test_cases = [
-            {
-                "name": "GET /v1/trackers/active/hourly",
-                "method": "get",
-                "path": "/v1/trackers/active/hourly",
-            },
-            {
-                "name": "POST /v1/trackers/run/hourly",
-                "method": "post",
-                "path": "/v1/trackers/run/hourly",
-            },
-        ]
-
-        expected_detail = "update_frequency must be one of ['daily', 'manual', 'weekly']"
-
-        for case in test_cases:
-            with self.subTest(case=case["name"]):
-                response = self._request(
-                    method=case["method"],
-                    path=case["path"]
-                )
-
-                self._assert_error_response(
-                    response=response,
-                    expected_status_code=400,
-                    expected_detail=expected_detail
-                )
-
-    # 測 unsupported source 的錯誤流程與 Run 副作用。
-    # tracker.source = steam 目前不支援，API 應回 400，同時 Run.status 要記成 failed。
-    def test_run_tracker_unsupported_source_records_failed_run(self):
-        tracker_id, _ = self._create_tracker(
-            name="Pytest Unsupported Source Tracker",
-            source="steam"
-        )
-
-        response = self.client.post(
-            "/v1/trackers/{0}/run".format(tracker_id)
-        )
-
-        self._assert_error_response(
-            response=response,
-            expected_status_code=400,
-            expected_detail="Unsupported source: steam"
-        )
-
-        runs_response = self.client.get(
-            "/v1/trackers/{0}/runs".format(tracker_id)
-        )
-
-        runs_data = self._assert_list_response(
-            response=runs_response,
-            min_length=1
-        )
-
-        latest_run = runs_data[0]
-
-        assert latest_run.get("tracker_id") == tracker_id
-        assert latest_run.get("status") == "failed"
-        assert latest_run.get("error_message") == "Unsupported source: steam"
 
 
 if __name__ == "__main__":

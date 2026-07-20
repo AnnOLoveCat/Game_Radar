@@ -12,7 +12,6 @@ from app.error_service import (
     raise_expected_boolean,
     raise_expected_list,
     raise_expected_object,
-    raise_invalid_update_frequency,
     raise_query_json_error,
     raise_run_execution_error,
     raise_run_query_json_format_error,
@@ -71,15 +70,13 @@ def validate_tracker_query_json(query: dict):
     if "is_indie" in query and not isinstance(query["is_indie"], bool):
         raise_expected_boolean("is_indie")
 
-def validate_update_frequency_value(update_frequency: str):
-    allowed = {"daily", "weekly", "manual"}
 
-    normalized_value = update_frequency.strip().lower()
+def _to_plain_value(value):
+    if hasattr(value, "value"):
+        return value.value
 
-    if normalized_value not in allowed:
-        raise_invalid_update_frequency(normalized_value)
+    return value
 
-    return normalized_value
 
 def create_tracker_record(payload, db: Session):
     query = payload.query_json
@@ -88,9 +85,9 @@ def create_tracker_record(payload, db: Session):
 
     tracker = Tracker(
         name=payload.name,
-        source=payload.source,
+        source=_to_plain_value(payload.source),
         query_json=json.dumps(query, ensure_ascii=False),
-        update_frequency=payload.update_frequency,
+        update_frequency=_to_plain_value(payload.update_frequency),
         is_active=payload.is_active,
     )
 
@@ -188,7 +185,10 @@ def update_tracker_fields(tracker: Tracker, update_data: dict, db: Session):
         update_data["query_json"] = json.dumps(query, ensure_ascii=False)
 
     for field, value in update_data.items():
-        setattr(tracker, field, value)
+        if field in {"source", "update_frequency"}:
+            setattr(tracker, field, _to_plain_value(value))
+        else:
+            setattr(tracker, field, value)
 
     db.commit()
     db.refresh(tracker)
@@ -240,8 +240,6 @@ def get_tracker_detail(tracker_id: int, db: Session):
     return get_tracker_or_404(tracker_id, db)
 
 def list_active_trackers_by_frequency(update_frequency: str, db: Session):
-    update_frequency = validate_update_frequency_value(update_frequency)
-
     return (
         db.query(Tracker)
         .filter(

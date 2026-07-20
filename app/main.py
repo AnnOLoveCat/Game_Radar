@@ -8,16 +8,16 @@ from app.db import get_db
 from app.schemas import (
     TrackerCreate,
     TrackerUpdate,
-    TrackerOut, 
-    GameOut, 
-    RunResult, 
-    RunOut, 
-    TrackerSummaryOut, 
+    TrackerOut,
+    GameOut,
+    RunResult,
+    RunOut,
+    TrackerSummaryOut,
     DashboardSummaryOut,
     DashboardActiveTrackerOut,
-    SchedulerJobOut,
     SchedulerStatusOut,
     BatchRunResultOut,
+    UpdateFrequency,
 )
 
 from app.tracker_service import (
@@ -212,13 +212,30 @@ def list_tracker_games(tracker_id: int, db: Session = Depends(get_db)):
     tags=["進階使用"],
     summary="批次執行指定頻率的 trackers"
 )
-def run_trackers_by_update_frequency(update_frequency: str = Path(..., description="批次執行頻率，例如 daily / weekly / manual"), db: Session = Depends(get_db)):
-    return run_trackers_by_frequency(update_frequency, db)
+def run_trackers_by_update_frequency(
+    update_frequency: UpdateFrequency = Path(
+        ...,
+        description="批次執行頻率：daily / weekly / manual"
+    ),
+    db: Session = Depends(get_db)
+):
+    return run_trackers_by_frequency(update_frequency.value, db)
 
 
-@app.get("/v1/trackers/active/{update_frequency}", response_model=list[TrackerOut], tags=["進階使用"], summary="查詢指定頻率的 active trackers")
-def list_active_trackers(update_frequency: str, db: Session = Depends(get_db)):
-    return list_active_trackers_by_frequency(update_frequency, db)
+@app.get(
+    "/v1/trackers/active/{update_frequency}",
+    response_model=list[TrackerOut],
+    tags=["進階使用"],
+    summary="查詢指定頻率的 active trackers"
+)
+def list_active_trackers(
+    update_frequency: UpdateFrequency = Path(
+        ...,
+        description="更新頻率：daily / weekly / manual"
+    ),
+    db: Session = Depends(get_db)
+):
+    return list_active_trackers_by_frequency(update_frequency.value, db)
 
 
 @app.get("/v1/trackers/{tracker_id}/summary", response_model=TrackerSummaryOut, tags=["進階使用"], summary="查詢單一 tracker 摘要")

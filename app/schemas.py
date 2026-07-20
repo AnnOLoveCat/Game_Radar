@@ -1,17 +1,32 @@
 import json
 
+from enum import Enum
 from typing import Any
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
+class TrackerSource(str, Enum):
+    mock = "mock"
+    rawg = "rawg"
+
+
+class UpdateFrequency(str, Enum):
+    daily = "daily"
+    weekly = "weekly"
+    manual = "manual"
+
 class TrackerCreate(BaseModel):
     name: str = Field(..., max_length=200, description="Tracker 名稱")
-    source: str = Field(default="mock", max_length=50, description="資料來源，例如 mock 或 rawg")
+    source: TrackerSource = Field(default=TrackerSource.mock, description="資料來源：mock / rawg")
     query_json: dict[str, Any] = Field(..., description="追蹤條件 JSON 物件")
-    update_frequency: str = Field(default="daily", max_length=20, description="更新頻率：daily / weekly / manual")
+    update_frequency: UpdateFrequency = Field(
+        default=UpdateFrequency.daily,
+        description="更新頻率：daily / weekly / manual"
+    )
     is_active: bool = Field(default=True, description="是否啟用此 tracker")
 
     model_config = ConfigDict(
+        use_enum_values=True,
         json_schema_extra={
             "example": {
                 "name": "Games Test",
@@ -50,37 +65,16 @@ class TrackerCreate(BaseModel):
         }
     )
 
-    @field_validator("update_frequency")
-    @classmethod
-    def validate_update_frequency(cls, value: str) -> str:
-        allowed = {"daily", "weekly", "manual"}
-        value = value.strip().lower()
-        if value not in allowed:
-            raise ValueError(f"update_frequency must be one of {sorted(allowed)}")
-        return value
-    
 
 class TrackerUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=200, description="Tracker 名稱")
-    source: str | None = Field(default=None, max_length=50, description="資料來源，例如 mock 或 rawg")
+    source: TrackerSource | None = Field(default=None, description="資料來源：mock / rawg")
     query_json: dict[str, Any] | None = Field(default=None, description="追蹤條件 JSON 物件")
-    update_frequency: str | None = Field(default=None, max_length=20, description="更新頻率：daily / weekly / manual")
+    update_frequency: UpdateFrequency | None = Field(default=None, description="更新頻率：daily / weekly / manual")
     is_active: bool | None = Field(default=None, description="是否啟用此 tracker")
 
-    @field_validator("update_frequency")
-    @classmethod
-    def validate_update_frequency(cls, value: str | None) -> str | None:
-        if value is None:
-            return value
+    model_config = ConfigDict(use_enum_values=True)
 
-        allowed = {"daily", "weekly", "manual"}
-        value = value.strip().lower()
-
-        if value not in allowed:
-            raise ValueError(f"update_frequency must be one of {sorted(allowed)}")
-
-        return value
-    
 
 class TrackerOut(BaseModel):
     id: int
@@ -115,8 +109,7 @@ class GameOut(BaseModel):
     source: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RunResult(BaseModel):
@@ -135,8 +128,7 @@ class RunOut(BaseModel):
     matched_games: int
     error_message: str | None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LatestRunSummary(BaseModel):

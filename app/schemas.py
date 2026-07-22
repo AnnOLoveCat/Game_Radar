@@ -15,6 +15,30 @@ class UpdateFrequency(str, Enum):
     weekly = "weekly"
     manual = "manual"
 
+
+class TargetGameQuery(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    platform_hints: list[str] = Field(default_factory=list)
+
+class UserReviewInput(BaseModel):
+    has_played: bool = Field(default=False)
+    platform_played: str | None = Field(default=None, max_length=100)
+    playtime_hours: float | None = Field(default=None, ge=0)
+    is_recommended: bool | None = Field(default=None)
+    review_title: str | None = Field(default=None, max_length=200)
+    review_text: str | None = Field(default=None)
+    pros: list[str] = Field(default_factory=list)
+    cons: list[str] = Field(default_factory=list)
+    suitable_for: list[str] = Field(default_factory=list)
+    not_suitable_for: list[str] = Field(default_factory=list)
+
+class ReviewFilters(BaseModel):
+    top_reviews_limit: int = Field(default=10, ge=1, le=100)
+    only_steam_purchase: bool = Field(default=True)
+    exclude_received_for_free: bool = Field(default=True)
+    min_playtime_at_review_minutes: int = Field(default=0, ge=0)
+    sort_by: str = Field(default="weighted_vote_score", max_length=100)
+
 class TrackerCreate(BaseModel):
     name: str = Field(..., max_length=200, description="Tracker 名稱")
     source: TrackerSource = Field(default=TrackerSource.mock, description="資料來源：mock / rawg")

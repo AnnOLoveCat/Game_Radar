@@ -31,6 +31,8 @@ def validate_tracker_query_json(query: dict):
         "genres",
         "platforms",
         "user_review",
+        "review_filters",
+        "analysis_rules",
 
         # legacy-compatible fields
         "games",
@@ -61,6 +63,12 @@ def validate_tracker_query_json(query: dict):
     if "user_review" in query and not isinstance(query["user_review"], dict):
         raise_expected_object("user_review")
 
+    if "review_filters" in query and not isinstance(query["review_filters"], dict):
+        raise_expected_object("review_filters")
+
+    if "analysis_rules" in query and not isinstance(query["analysis_rules"], dict):
+        raise_expected_object("analysis_rules")
+
     if "games" in query and not isinstance(query["games"], list):
         raise_expected_list("games")
 
@@ -77,9 +85,14 @@ def _to_plain_value(value):
 
     return value
 
+def _to_plain_dict(value):
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+
+    return value
 
 def create_tracker_record(payload, db: Session):
-    query = payload.query_json
+    query = _to_plain_dict(payload.query_json)
 
     validate_tracker_query_json(query)
 

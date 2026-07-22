@@ -3,7 +3,7 @@ import json
 from enum import Enum
 from typing import Any
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict, StrictBool
 
 class TrackerSource(str, Enum):
     mock = "mock"
@@ -17,14 +17,18 @@ class UpdateFrequency(str, Enum):
 
 
 class TargetGameQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    
     title: str = Field(..., min_length=1, max_length=200)
     platform_hints: list[str] = Field(default_factory=list)
 
 class UserReviewInput(BaseModel):
-    has_played: bool = Field(default=False)
+    model_config = ConfigDict(extra="forbid")
+
+    has_played: StrictBool = Field(default=False)
     platform_played: str | None = Field(default=None, max_length=100)
     playtime_hours: float | None = Field(default=None, ge=0)
-    is_recommended: bool | None = Field(default=None)
+    is_recommended: StrictBool | None = Field(default=None)
     review_title: str | None = Field(default=None, max_length=200)
     review_text: str | None = Field(default=None)
     pros: list[str] = Field(default_factory=list)
@@ -33,16 +37,45 @@ class UserReviewInput(BaseModel):
     not_suitable_for: list[str] = Field(default_factory=list)
 
 class ReviewFilters(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     top_reviews_limit: int = Field(default=10, ge=1, le=100)
-    only_steam_purchase: bool = Field(default=True)
-    exclude_received_for_free: bool = Field(default=True)
+    only_steam_purchase: StrictBool = Field(default=True)
+    exclude_received_for_free: StrictBool = Field(default=True)
     min_playtime_at_review_minutes: int = Field(default=0, ge=0)
     sort_by: str = Field(default="weighted_vote_score", max_length=100)
+
+class AnalysisRules(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    check_player_experience: StrictBool = Field(default=True)
+    detect_low_gameplay_interaction: StrictBool = Field(default=True)
+    detect_cinematic_experience: StrictBool = Field(default=True)
+    detect_auto_play_or_lack_of_control: StrictBool = Field(default=True)
+    compare_media_and_player_reviews: StrictBool = Field(default=True)
+    do_not_use_media_score_as_main_score: StrictBool = Field(default=True)
+
+class TrackerQueryJson(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_game: TargetGameQuery
+    sources_to_check: list[str] = Field(default_factory=list)
+    regions: list[str] = Field(default_factory=list)
+    genres: list[str] = Field(default_factory=list)
+    platforms: list[str] = Field(default_factory=list)
+    user_review: UserReviewInput | None = Field(default=None)
+    review_filters: ReviewFilters = Field(default_factory=ReviewFilters)
+    analysis_rules: AnalysisRules = Field(default_factory=AnalysisRules)
+
+    # legacy-compatible fields
+    games: list[str] = Field(default_factory=list)
+    is_indie: StrictBool = Field(default=False)
+    studios: list[str] = Field(default_factory=list)
 
 class TrackerCreate(BaseModel):
     name: str = Field(..., max_length=200, description="Tracker 名稱")
     source: TrackerSource = Field(default=TrackerSource.mock, description="資料來源：mock / rawg")
-    query_json: dict[str, Any] = Field(..., description="追蹤條件 JSON 物件")
+    query_json: TrackerQueryJson = Field(..., description="追蹤條件 JSON 物件")
     update_frequency: UpdateFrequency = Field(
         default=UpdateFrequency.daily,
         description="更新頻率：daily / weekly / manual"

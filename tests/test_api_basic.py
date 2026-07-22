@@ -741,7 +741,7 @@ class TestApiBasic(unittest.TestCase):
 
     # 測 query_json 多出不支援欄位 unknown_key。
     # POST 建立與 PATCH 更新都應該走同一個 service-level validation，回 400。
-    def test_unsupported_query_json_key_returns_400(self):
+    def test_unsupported_query_json_key_returns_expected_errors(self):
         test_cases = [
             {
                 "name": "POST /v1/trackers query_json.unknown_key",
@@ -762,10 +762,17 @@ class TestApiBasic(unittest.TestCase):
                 )
 
                 if case["operation"] == "create":
-                    self._assert_create_tracker_query_json_error(
+                    payload = self._build_tracker_payload(
                         name="Pytest Unsupported Query JSON Key",
-                        query_json=query_json,
-                        expected_detail=expected_detail
+                        query_json=query_json
+                    )
+
+                    response = self.client.post("/v1/trackers", json=payload)
+
+                    self._assert_error_response(
+                        response=response,
+                        expected_status_code=422,
+                        expected_field="unknown_key"
                     )
 
                 if case["operation"] == "update":
@@ -776,7 +783,7 @@ class TestApiBasic(unittest.TestCase):
 
     # 測 query_json 內部欄位型別錯誤，預期回 400。
     # 使用雙層 table-driven test：同一批欄位錯誤同時測 POST create 與 PATCH update。
-    def test_invalid_query_json_field_types_return_400(self):
+    def test_invalid_query_json_field_types_return_expected_errors(self):
         # 每個 field_case 代表一種 query_json 欄位型別錯誤。
         field_cases = [
             {
@@ -832,10 +839,12 @@ class TestApiBasic(unittest.TestCase):
             {
                 "name": "POST /v1/trackers",
                 "operation": "create",
+                "expected_status_code": 422,
             },
             {
                 "name": "PATCH /v1/trackers/{tracker_id}",
                 "operation": "update",
+                "expected_status_code": 400,
             },
         ]
 
@@ -846,10 +855,17 @@ class TestApiBasic(unittest.TestCase):
                     field=field_case["field_name"]
                 ):
                     if operation_case["operation"] == "create":
-                        self._assert_create_tracker_query_json_error(
+                        payload = self._build_tracker_payload(
                             name="Pytest Invalid {0} Type".format(field_case["field_name"]),
-                            query_json=field_case["query_json"],
-                            expected_detail=field_case["expected_detail"]
+                            query_json=field_case["query_json"]
+                        )
+
+                        response = self.client.post("/v1/trackers", json=payload)
+
+                        self._assert_error_response(
+                            response=response,
+                            expected_status_code=422,
+                            expected_field=field_case["field_name"]
                         )
 
                     if operation_case["operation"] == "update":

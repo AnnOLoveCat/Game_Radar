@@ -741,110 +741,117 @@ class TestApiBasic(unittest.TestCase):
 
     # 測 query_json 多出不支援欄位 unknown_key。
     # POST 建立與 PATCH 更新都應該走同一個 service-level validation，回 400。
-    def test_unsupported_query_json_key_returns_expected_errors(self):
+    def test_unsupported_query_json_key_returns_422(self):
+        tracker_id, _ = self._create_tracker(
+            name="Pytest Unsupported Query JSON Key Update Target"
+        )
+
         test_cases = [
             {
                 "name": "POST /v1/trackers query_json.unknown_key",
-                "operation": "create",
+                "method": "post",
+                "path": "/v1/trackers",
+                "json_body": self._build_tracker_payload(
+                    name="Pytest Unsupported Query JSON Key",
+                    query_json=self._build_query_json(
+                        unknown_key="not allowed"
+                    )
+                ),
+                "expected_field": "unknown_key",
             },
             {
                 "name": "PATCH /v1/trackers/{tracker_id} query_json.unknown_key",
-                "operation": "update",
+                "method": "patch",
+                "path": "/v1/trackers/{0}".format(tracker_id),
+                "json_body": {
+                    "query_json": self._build_query_json(
+                        unknown_key="not allowed"
+                    )
+                },
+                "expected_field": "unknown_key",
             },
         ]
 
-        expected_detail = "Unsupported query_json keys: ['unknown_key']"
-
         for case in test_cases:
             with self.subTest(case=case["name"]):
-                query_json = self._build_query_json(
-                    unknown_key="not allowed"
+                response = self._request(
+                    method=case["method"],
+                    path=case["path"],
+                    json_body=case["json_body"]
                 )
 
-                if case["operation"] == "create":
-                    payload = self._build_tracker_payload(
-                        name="Pytest Unsupported Query JSON Key",
-                        query_json=query_json
-                    )
+                self._assert_error_response(
+                    response=response,
+                    expected_status_code=422,
+                    expected_field=case["expected_field"]
+                )
 
-                    response = self.client.post("/v1/trackers", json=payload)
-
-                    self._assert_error_response(
-                        response=response,
-                        expected_status_code=422,
-                        expected_field="unknown_key"
-                    )
-
-                if case["operation"] == "update":
-                    self._assert_update_tracker_query_json_error(
-                        query_json=query_json,
-                        expected_detail=expected_detail
-                    )
 
     # 測 query_json 內部欄位型別錯誤，預期回 400。
     # 使用雙層 table-driven test：同一批欄位錯誤同時測 POST create 與 PATCH update。
-    def test_invalid_query_json_field_types_return_expected_errors(self):
-        # 每個 field_case 代表一種 query_json 欄位型別錯誤。
+    def test_invalid_query_json_field_types_return_422(self):
+        tracker_id, _ = self._create_tracker(
+            name="Pytest Invalid Query JSON Type Update Target"
+        )
+
         field_cases = [
             {
                 "field_name": "target_game",
                 "query_json": self._build_query_json(target_game="Elden Ring"),
-                "expected_detail": "target_game must be an object",
+                "expected_field": "target_game",
             },
             {
                 "field_name": "sources_to_check",
                 "query_json": self._build_query_json(sources_to_check="mock"),
-                "expected_detail": "sources_to_check must be a list",
+                "expected_field": "sources_to_check",
             },
             {
                 "field_name": "regions",
                 "query_json": self._build_query_json(regions="japan"),
-                "expected_detail": "regions must be a list",
+                "expected_field": "regions",
             },
             {
                 "field_name": "genres",
                 "query_json": self._build_query_json(genres="Action RPG"),
-                "expected_detail": "genres must be a list",
+                "expected_field": "genres",
             },
             {
                 "field_name": "platforms",
                 "query_json": self._build_query_json(platforms="PC"),
-                "expected_detail": "platforms must be a list",
+                "expected_field": "platforms",
             },
             {
                 "field_name": "user_review",
                 "query_json": self._build_query_json(user_review="good game"),
-                "expected_detail": "user_review must be an object",
+                "expected_field": "user_review",
             },
             {
                 "field_name": "games",
                 "query_json": self._build_query_json(games="Elden Ring"),
-                "expected_detail": "games must be a list",
+                "expected_field": "games",
             },
             {
                 "field_name": "studios",
                 "query_json": self._build_query_json(studios="FromSoftware"),
-                "expected_detail": "studios must be a list",
+                "expected_field": "studios",
             },
             {
                 "field_name": "is_indie",
                 "query_json": self._build_query_json(is_indie="false"),
-                "expected_detail": "is_indie must be a boolean",
+                "expected_field": "is_indie",
             },
         ]
 
-        # 同一批欄位錯誤要同時套用到建立與更新，
-        # 這樣就不用把 create/update 各寫一份重複測試。
         operation_cases = [
             {
                 "name": "POST /v1/trackers",
-                "operation": "create",
-                "expected_status_code": 422,
+                "method": "post",
+                "path": "/v1/trackers",
             },
             {
                 "name": "PATCH /v1/trackers/{tracker_id}",
-                "operation": "update",
-                "expected_status_code": 400,
+                "method": "patch",
+                "path": "/v1/trackers/{0}".format(tracker_id),
             },
         ]
 
@@ -854,25 +861,27 @@ class TestApiBasic(unittest.TestCase):
                     operation=operation_case["name"],
                     field=field_case["field_name"]
                 ):
-                    if operation_case["operation"] == "create":
-                        payload = self._build_tracker_payload(
+                    if operation_case["method"] == "post":
+                        json_body = self._build_tracker_payload(
                             name="Pytest Invalid {0} Type".format(field_case["field_name"]),
                             query_json=field_case["query_json"]
                         )
+                    else:
+                        json_body = {
+                            "query_json": field_case["query_json"]
+                        }
 
-                        response = self.client.post("/v1/trackers", json=payload)
+                    response = self._request(
+                        method=operation_case["method"],
+                        path=operation_case["path"],
+                        json_body=json_body
+                    )
 
-                        self._assert_error_response(
-                            response=response,
-                            expected_status_code=422,
-                            expected_field=field_case["field_name"]
-                        )
-
-                    if operation_case["operation"] == "update":
-                        self._assert_update_tracker_query_json_error(
-                            query_json=field_case["query_json"],
-                            expected_detail=field_case["expected_detail"]
-                        )
+                    self._assert_error_response(
+                        response=response,
+                        expected_status_code=422,
+                        expected_field=field_case["expected_field"]
+                    )
 
     # 測 tracker_id 不存在時的 404。
     # GET / PATCH / DELETE 都是同一種錯誤規則：path parameter tracker_id 找不到資料。

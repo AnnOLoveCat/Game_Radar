@@ -126,7 +126,7 @@ class TrackerCreate(BaseModel):
 class TrackerUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=200, description="Tracker 名稱")
     source: TrackerSource | None = Field(default=None, description="資料來源：mock / rawg")
-    query_json: dict[str, Any] | None = Field(default=None, description="追蹤條件 JSON 物件")
+    query_json: TrackerQueryJson | None = Field(default=None, description="追蹤條件 JSON 物件")
     update_frequency: UpdateFrequency | None = Field(default=None, description="更新頻率：daily / weekly / manual")
     is_active: bool | None = Field(default=None, description="是否啟用此 tracker")
 

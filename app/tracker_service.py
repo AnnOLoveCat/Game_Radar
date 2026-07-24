@@ -193,7 +193,7 @@ def delete_tracker_with_dependencies(tracker: Tracker, db: Session):
 
 def update_tracker_fields(tracker: Tracker, update_data: dict, db: Session):
     if "query_json" in update_data:
-        query = update_data["query_json"]
+        query = _to_plain_dict(update_data["query_json"])
         validate_tracker_query_json(query)
         update_data["query_json"] = json.dumps(query, ensure_ascii=False)
 

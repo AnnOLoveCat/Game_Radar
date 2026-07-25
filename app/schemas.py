@@ -58,7 +58,10 @@ class AnalysisRules(BaseModel):
 class TrackerQueryJson(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    target_game: TargetGameQuery
+    target_game: TargetGameQuery | None = Field(
+        default=None,
+        description="主要追蹤遊戲。新格式建議使用此欄位。"
+    )
     sources_to_check: list[str] = Field(default_factory=list)
     regions: list[str] = Field(default_factory=list)
     genres: list[str] = Field(default_factory=list)
@@ -68,9 +71,18 @@ class TrackerQueryJson(BaseModel):
     analysis_rules: AnalysisRules = Field(default_factory=AnalysisRules)
 
     # legacy-compatible fields
-    games: list[str] = Field(default_factory=list)
-    is_indie: StrictBool = Field(default=False)
-    studios: list[str] = Field(default_factory=list)
+    games: list[str] = Field(
+        default_factory=list,
+        description="Legacy field. Prefer target_game.title for single-game tracking."
+    )
+    is_indie: StrictBool = Field(
+        default=False,
+        description="Legacy field. Kept for backward compatibility."
+    )
+    studios: list[str] = Field(
+        default_factory=list,
+        description="Legacy field. Kept for backward compatibility."
+    )
 
 class TrackerCreate(BaseModel):
     name: str = Field(..., max_length=200, description="Tracker 名稱")

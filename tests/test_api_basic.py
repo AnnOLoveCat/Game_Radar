@@ -826,6 +826,16 @@ class TestApiBasic(unittest.TestCase):
                 "expected_field": "user_review",
             },
             {
+                "field_name": "review_filters",
+                "query_json": self._build_query_json(review_filters="bad filters"),
+                "expected_field": "review_filters",
+            },
+            {
+                "field_name": "analysis_rules",
+                "query_json": self._build_query_json(analysis_rules="bad rules"),
+                "expected_field": "analysis_rules",
+            },
+            {
                 "field_name": "games",
                 "query_json": self._build_query_json(games="Elden Ring"),
                 "expected_field": "games",
@@ -923,6 +933,60 @@ class TestApiBasic(unittest.TestCase):
                     expected_detail="Tracker not found"
                 )
 
+
+    # 測 legacy query_json 欄位仍然相容。
+    # 舊格式可能沒有 target_game，但仍可使用 regions / games / is_indie / studios。
+    def test_legacy_query_json_fields_remain_supported(self):
+        legacy_query_json = {
+            "regions": ["japan"],
+            "games": ["Elden Ring"],
+            "is_indie": False,
+            "studios": ["FromSoftware"],
+        }
+
+        payload = self._build_tracker_payload(
+            name="Pytest Legacy Query JSON Tracker",
+            query_json=legacy_query_json
+        )
+
+        create_response = self.client.post("/v1/trackers", json=payload)
+
+        assert create_response.status_code == 200, create_response.json()
+
+        created_data = create_response.json()
+        created_query_json = created_data.get("query_json")
+
+        assert created_query_json["regions"] == ["japan"]
+        assert created_query_json["games"] == ["Elden Ring"]
+        assert created_query_json["is_indie"] is False
+        assert created_query_json["studios"] == ["FromSoftware"]
+        assert "target_game" not in created_query_json
+
+        tracker_id = created_data["id"]
+
+        update_payload = {
+            "query_json": {
+                "regions": ["usa"],
+                "games": ["Hades II"],
+                "is_indie": True,
+                "studios": ["Supergiant Games"],
+            }
+        }
+
+        update_response = self.client.patch(
+            "/v1/trackers/{0}".format(tracker_id),
+            json=update_payload
+        )
+
+        assert update_response.status_code == 200, update_response.json()
+
+        updated_query_json = update_response.json().get("query_json")
+
+        assert updated_query_json["regions"] == ["usa"]
+        assert updated_query_json["games"] == ["Hades II"]
+        assert updated_query_json["is_indie"] is True
+        assert updated_query_json["studios"] == ["Supergiant Games"]
+        assert "target_game" not in updated_query_json
 
 if __name__ == "__main__":
     unittest.main()

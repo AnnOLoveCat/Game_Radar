@@ -87,7 +87,7 @@ def _to_plain_value(value):
 
 def _to_plain_dict(value):
     if hasattr(value, "model_dump"):
-        return value.model_dump()
+        return value.model_dump(mode="json", exclude_none=True)
 
     return value
 

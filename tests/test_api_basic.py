@@ -161,16 +161,10 @@ class TestApiBasic(unittest.TestCase):
             "genres": ["Action RPG"],
             "platforms": ["PC", "Xbox"],
             "user_review": {
-                "has_played": True,
-                "platform_played": "PC",
-                "playtime_hours": 40,
-                "is_recommended": True,
-                "review_title": "高難度但很有探索感",
+                "username": "pytest_user",
+                "rating": 4.5,
                 "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色，但新手一開始會比較容易挫折。",
-                "pros": ["探索感強", "戰鬥有挑戰性", "世界觀完整"],
-                "cons": ["新手門檻高", "部分 Boss 難度偏高"],
-                "suitable_for": ["喜歡高難度動作 RPG 的玩家"],
-                "not_suitable_for": ["不喜歡反覆挑戰 Boss 的玩家"]
+                "is_recommended": True,
             }
         }
 
@@ -406,16 +400,10 @@ class TestApiBasic(unittest.TestCase):
                 "genres": ["Action Roguelike"],
                 "platforms": ["PC"],
                 "user_review": {
-                    "has_played": True,
-                    "platform_played": "PC",
-                    "playtime_hours": 8,
+                    "username": "pytest_user",
+                    "rating": 4.5,
+                    "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色，但新手一開始會比較容易挫折。",
                     "is_recommended": True,
-                    "review_title": "節奏快，戰鬥爽感強",
-                    "review_text": "Hades II 的戰鬥節奏很快，角色成長和反覆挑戰的設計很適合喜歡 Roguelike 的玩家。",
-                    "pros": ["戰鬥節奏快", "角色成長明確"],
-                    "cons": ["需要反覆挑戰"],
-                    "suitable_for": ["喜歡 Roguelike 的玩家"],
-                    "not_suitable_for": ["不喜歡重複刷關的玩家"]
                 }
             }
         }

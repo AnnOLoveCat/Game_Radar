@@ -25,16 +25,10 @@ class TargetGameQuery(BaseModel):
 class UserReviewInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    has_played: StrictBool = Field(default=False)
-    platform_played: str | None = Field(default=None, max_length=100)
-    playtime_hours: float | None = Field(default=None, ge=0)
-    is_recommended: StrictBool | None = Field(default=None)
-    review_title: str | None = Field(default=None, max_length=200)
+    username: str | None = Field(default=None, max_length=100)
+    rating: float | None = Field(default=None, ge=0, le=5)
     review_text: str | None = Field(default=None)
-    pros: list[str] = Field(default_factory=list)
-    cons: list[str] = Field(default_factory=list)
-    suitable_for: list[str] = Field(default_factory=list)
-    not_suitable_for: list[str] = Field(default_factory=list)
+    is_recommended: StrictBool | None = Field(default=None)
 
 class ReviewFilters(BaseModel):
     model_config = ConfigDict(extra="forbid")

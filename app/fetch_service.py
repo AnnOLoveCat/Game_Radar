@@ -54,7 +54,10 @@ def fetch_rawg_games(query: dict | None = None):
     results = []
     for item in data.get("results", []):
         developers = item.get("developers", [])
-        developer_name = developers[0]["name"] if developers else None
+        developer_name = developers[0].get("name") if developers else None
+
+        publishers = item.get("publishers", [])
+        publisher_name = publishers[0].get("name") if publishers else None
 
         parent_platforms = item.get("parent_platforms", [])
         platform_names = []
@@ -69,6 +72,7 @@ def fetch_rawg_games(query: dict | None = None):
                 "external_id": f"rawg-{item.get('id')}",
                 "title": item.get("name"),
                 "studio": developer_name,
+                "publisher": publisher_name,
                 "region": "global",
                 "genre": ", ".join([g["name"] for g in item.get("genres", [])]) or None,
                 "platform": " / ".join(platform_names) if platform_names else None,

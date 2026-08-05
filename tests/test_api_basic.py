@@ -451,7 +451,7 @@ class TestApiBasic(unittest.TestCase):
             {
                 "name": "Tracker games endpoint",
                 "path": "/v1/trackers/{0}/games".format(tracker_id),
-                "required_keys": ["id", "external_id", "title", "source"],
+                "required_keys": ["id", "external_id", "title", "publisher", "source"],
             },
             {
                 "name": "Dashboard recent runs",
@@ -461,7 +461,7 @@ class TestApiBasic(unittest.TestCase):
             {
                 "name": "Dashboard recent games",
                 "path": "/v1/dashboard/recent-games",
-                "required_keys": ["id", "external_id", "title", "source"],
+                "required_keys": ["id", "external_id", "title", "publisher", "source"],
             },
         ]
 

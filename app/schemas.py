@@ -163,12 +163,13 @@ class GameOut(BaseModel):
     id: int
     external_id: str
     title: str
-    studio: str | None
-    region: str | None
-    genre: str | None
-    platform: str | None
-    release_date: str | None
-    latest_update_date: str | None
+    studio: str | None = None
+    publisher: str | None = None
+    region: str | None = None
+    genre: str | None = None
+    platform: str | None = None
+    release_date: str | None = None
+    latest_update_date: str | None = None
     source: str
     created_at: datetime
 

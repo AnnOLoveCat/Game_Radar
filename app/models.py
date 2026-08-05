@@ -25,6 +25,7 @@ class Game(Base):
     external_id: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     studio: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    publisher: Mapped[str | None] = mapped_column(String(255), nullable=True)
     region: Mapped[str | None] = mapped_column(String(50), nullable=True)
     genre: Mapped[str | None] = mapped_column(String(100), nullable=True)
     platform: Mapped[str | None] = mapped_column(String(100), nullable=True)

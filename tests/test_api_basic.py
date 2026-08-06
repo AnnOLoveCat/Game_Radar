@@ -230,54 +230,6 @@ class TestApiBasic(unittest.TestCase):
 
         return response.json()
 
-    # 檢查 POST /v1/trackers 時 query_json 內部結構錯誤。
-    # 這裡測的是 service-level validation，所以通常預期 400，不是 Pydantic 422。
-    def _assert_create_tracker_query_json_error(
-        self,
-        name,
-        query_json,
-        expected_detail,
-        expected_status_code=400
-    ):
-        payload = self._build_tracker_payload(
-            name=name,
-            query_json=query_json
-        )
-
-        response = self.client.post("/v1/trackers", json=payload)
-
-        self._assert_error_response(
-            response=response,
-            expected_status_code=expected_status_code,
-            expected_detail=expected_detail
-        )
-
-    # 檢查 PATCH /v1/trackers/{tracker_id} 時 query_json 內部結構錯誤。
-    # 先建立一筆 tracker，再用錯誤 query_json 去 PATCH。
-    def _assert_update_tracker_query_json_error(
-        self,
-        query_json,
-        expected_detail,
-        expected_status_code=400
-    ):
-        tracker_id, _ = self._create_tracker(
-            name="Pytest Update Query JSON Validation Tracker"
-        )
-
-        update_payload = {
-            "query_json": query_json
-        }
-
-        response = self.client.patch(
-            "/v1/trackers/{0}".format(tracker_id),
-            json=update_payload
-        )
-
-        self._assert_error_response(
-            response=response,
-            expected_status_code=expected_status_code,
-            expected_detail=expected_detail
-        )
 
     # =========================
     # System API Tests
@@ -728,7 +680,7 @@ class TestApiBasic(unittest.TestCase):
 
 
     # 測 query_json 多出不支援欄位 unknown_key。
-    # POST 建立與 PATCH 更新都應該走同一個 service-level validation，回 400。
+    # POST 建立與 PATCH 更新都應該由 FastAPI / Pydantic schema validation 回 422。
     def test_unsupported_query_json_key_returns_422(self):
         tracker_id, _ = self._create_tracker(
             name="Pytest Unsupported Query JSON Key Update Target"
@@ -775,7 +727,7 @@ class TestApiBasic(unittest.TestCase):
                 )
 
 
-    # 測 query_json 內部欄位型別錯誤，預期回 400。
+    # 測 query_json 內部欄位型別錯誤，預期由 FastAPI / Pydantic schema validation 回 422。
     # 使用雙層 table-driven test：同一批欄位錯誤同時測 POST create 與 PATCH update。
     def test_invalid_query_json_field_types_return_422(self):
         tracker_id, _ = self._create_tracker(

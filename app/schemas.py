@@ -163,9 +163,20 @@ class GameOut(BaseModel):
     id: int
     external_id: str
     title: str
-    studio: str | None = None
-    publisher: str | None = None
-    region: str | None = None
+
+    studio: str | None = Field(
+        default=None,
+        description="Developer or game studio."
+    )
+    publisher: str | None = Field(
+        default=None,
+        description="Game publisher."
+    )
+    region: str | None = Field(
+        default=None,
+        description="Legacy region field kept for backward compatibility. Not a primary display field."
+    )
+
     genre: str | None = None
     platform: str | None = None
     release_date: str | None = None
@@ -185,12 +196,18 @@ class RunResult(BaseModel):
 class RunOut(BaseModel):
     id: int
     tracker_id: int
-    started_at: datetime
-    ended_at: datetime | None
+    started_at: datetime = Field(
+        ...,
+        description="Execution start time. Display as the run execution time in user-facing UI."
+    )
+    ended_at: datetime | None = Field(
+        default=None,
+        description="Execution end time. Used with started_at to describe when the run was executed."
+    )
     status: str
     inserted_games: int
     matched_games: int
-    error_message: str | None
+    error_message: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -198,11 +215,17 @@ class RunOut(BaseModel):
 class LatestRunSummary(BaseModel):
     id: int
     status: str
-    started_at: datetime
-    ended_at: datetime | None
+    started_at: datetime = Field(
+        ...,
+        description="Execution start time. Display as the latest run execution time in user-facing UI."
+    )
+    ended_at: datetime | None = Field(
+        default=None,
+        description="Execution end time for the latest run."
+    )
     inserted_games: int
     matched_games: int
-    error_message: str | None
+    error_message: str | None = None
 
 
 class TrackerSummaryOut(BaseModel):

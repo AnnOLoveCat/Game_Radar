@@ -127,7 +127,8 @@ class TestApiBasic(unittest.TestCase):
         response,
         expected_status_code=200,
         min_length=None,
-        required_keys=None
+        required_keys=None,
+        excluded_keys=None,
     ):
         assert response.status_code == expected_status_code, response.json()
 
@@ -138,13 +139,19 @@ class TestApiBasic(unittest.TestCase):
         if min_length is not None:
             assert len(data) >= min_length
 
-        # 如果指定 required_keys，就檢查第一筆資料是否具有必要欄位。
         if required_keys:
             assert len(data) >= 1
 
             first_item = data[0]
             for key in required_keys:
                 assert key in first_item
+
+        if excluded_keys:
+            assert len(data) >= 1
+
+            first_item = data[0]
+            for key in excluded_keys:
+                assert key not in first_item
 
         return data
 
@@ -398,22 +405,24 @@ class TestApiBasic(unittest.TestCase):
             {
                 "name": "Tracker runs endpoint",
                 "path": "/v1/trackers/{0}/runs".format(tracker_id),
-                "required_keys": ["id", "tracker_id", "status", "started_at"],
+                "required_keys": ["id", "tracker_id", "status", "started_at", "executed_at"],
             },
             {
                 "name": "Tracker games endpoint",
                 "path": "/v1/trackers/{0}/games".format(tracker_id),
                 "required_keys": ["id", "external_id", "title", "publisher", "source"],
+                "excluded_keys": ["region"],
             },
             {
                 "name": "Dashboard recent runs",
                 "path": "/v1/dashboard/recent-runs",
-                "required_keys": ["id", "tracker_id", "status"],
+                "required_keys": ["id", "tracker_id", "status", "executed_at"],
             },
             {
                 "name": "Dashboard recent games",
                 "path": "/v1/dashboard/recent-games",
                 "required_keys": ["id", "external_id", "title", "publisher", "source"],
+                "excluded_keys": ["region"],
             },
         ]
 
@@ -423,8 +432,10 @@ class TestApiBasic(unittest.TestCase):
                 self._assert_list_response(
                     response=response,
                     min_length=1,
-                    required_keys=case["required_keys"]
+                    required_keys=case["required_keys"],
+                    excluded_keys=case.get("excluded_keys")
                 )
+
 
     # 測 tracker summary 回應。
     # summary 結構比較特殊，會包含 tracker 基本資料、matched_games_count、latest_run，所以保留獨立測試。
@@ -443,6 +454,13 @@ class TestApiBasic(unittest.TestCase):
         assert summary_data.get("name") == "Pytest Summary Tracker"
         assert "matched_games_count" in summary_data
         assert "latest_run" in summary_data
+
+        latest_run = summary_data.get("latest_run")
+
+        assert latest_run is not None
+        assert "started_at" in latest_run
+        assert "executed_at" in latest_run
+        assert latest_run["executed_at"] == latest_run["started_at"]
 
         query_json = summary_data.get("query_json")
 

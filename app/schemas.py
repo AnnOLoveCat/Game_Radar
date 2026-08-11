@@ -3,7 +3,7 @@ import json
 from enum import Enum
 from typing import Any
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator, ConfigDict, StrictBool
+from pydantic import BaseModel, Field, field_validator, ConfigDict, StrictBool, computed_field
 
 class TrackerSource(str, Enum):
     mock = "mock"
@@ -112,16 +112,10 @@ class TrackerCreate(BaseModel):
                     "genres": ["Adventure", "Indie", "Narrative"],
                     "platforms": ["PC", "Steam", "Xbox"],
                     "user_review": {
-                        "has_played": True,
-                        "platform_played": "Steam",
-                        "playtime_hours": 4,
-                        "is_recommended": False,
-                        "review_title": "美術和音樂不錯，但遊玩互動性不足",
+                        "username": "player01",
+                        "rating": 3.5,
                         "review_text": "我覺得這款遊戲的音樂、美術和演出都不錯，但實際操作內容偏少，很多段落比較像互動電影。",
-                        "pros": ["音樂表現佳", "美術風格不錯"],
-                        "cons": ["實際操作內容偏少", "玩家控制感不足"],
-                        "suitable_for": ["喜歡劇情導向遊戲的玩家"],
-                        "not_suitable_for": ["重視操作感的玩家"]
+                        "is_recommended": False
                     }
                 }
             }
@@ -172,10 +166,6 @@ class GameOut(BaseModel):
         default=None,
         description="Game publisher."
     )
-    region: str | None = Field(
-        default=None,
-        description="Legacy region field kept for backward compatibility. Not a primary display field."
-    )
 
     genre: str | None = None
     platform: str | None = None
@@ -198,16 +188,21 @@ class RunOut(BaseModel):
     tracker_id: int
     started_at: datetime = Field(
         ...,
-        description="Execution start time. Display as the run execution time in user-facing UI."
+        description="Execution start time. Kept for technical tracking."
     )
     ended_at: datetime | None = Field(
         default=None,
-        description="Execution end time. Used with started_at to describe when the run was executed."
+        description="Execution end time. Kept for technical tracking."
     )
     status: str
     inserted_games: int
     matched_games: int
     error_message: str | None = None
+
+    @computed_field
+    @property
+    def executed_at(self) -> datetime:
+        return self.started_at
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -217,15 +212,22 @@ class LatestRunSummary(BaseModel):
     status: str
     started_at: datetime = Field(
         ...,
-        description="Execution start time. Display as the latest run execution time in user-facing UI."
+        description="Execution start time. Kept for technical tracking."
     )
     ended_at: datetime | None = Field(
         default=None,
-        description="Execution end time for the latest run."
+        description="Execution end time. Kept for technical tracking."
     )
     inserted_games: int
     matched_games: int
     error_message: str | None = None
+
+    @computed_field
+    @property
+    def executed_at(self) -> datetime:
+        return self.started_at
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TrackerSummaryOut(BaseModel):

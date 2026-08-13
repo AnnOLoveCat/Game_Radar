@@ -355,7 +355,6 @@ class TestApiBasic(unittest.TestCase):
                     "platform_hints": ["PC", "Steam"]
                 },
                 "sources_to_check": ["mock"],
-                "regions": ["usa"],
                 "genres": ["Action Roguelike"],
                 "platforms": ["PC"],
                 "user_review": {

@@ -1,14 +1,12 @@
 def match_game(item, query):
-    region = str(item.get("region") or "unknown").strip().lower()
     title = str(item.get("title", "")).strip().lower()
     studio = str(item.get("studio", "")).strip().lower()
     genre = str(item.get("genre", "")).strip().lower()
     platform = str(item.get("platform", "")).strip().lower()
 
-    target_game = query.get("target_game", {})
+    target_game = query.get("target_game") or {}
     target_title = str(target_game.get("title", "")).strip().lower()
 
-    regions = [str(r).strip().lower() for r in query.get("regions", [])]
     games = [str(g).strip().lower() for g in query.get("games", [])]
     genres = [str(g).strip().lower() for g in query.get("genres", [])]
     platforms = [str(p).strip().lower() for p in query.get("platforms", [])]
@@ -18,11 +16,6 @@ def match_game(item, query):
 
     if target_title and target_title not in games:
         games.append(target_title)
-
-    # 地區條件
-    if regions:
-        if region not in regions:
-            return False
 
     # 遊戲名稱條件：寬鬆比對
     if games:

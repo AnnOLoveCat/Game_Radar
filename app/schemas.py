@@ -57,7 +57,7 @@ class TrackerQueryJson(BaseModel):
         description="主要追蹤遊戲。新格式建議使用此欄位。"
     )
     sources_to_check: list[str] = Field(default_factory=list)
-    regions: list[str] = Field(default_factory=list)
+    regions: list[str] = Field(default_factory=list, description="Legacy field. Kept for backward compatibility and not used as a primary matching condition.")
     genres: list[str] = Field(default_factory=list)
     platforms: list[str] = Field(default_factory=list)
     user_review: UserReviewInput | None = Field(default=None)
@@ -108,7 +108,6 @@ class TrackerCreate(BaseModel):
                         "opencritic",
                         "metacritic"
                     ],
-                    "regions": ["japan", "asia", "global"],
                     "genres": ["Adventure", "Indie", "Narrative"],
                     "platforms": ["PC", "Steam", "Xbox"],
                     "user_review": {

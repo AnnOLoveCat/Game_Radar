@@ -16,11 +16,23 @@ class UpdateFrequency(str, Enum):
     manual = "manual"
 
 
+# =========================
+# Current Tracker Query Schemas
+# =========================
+
 class TargetGameQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    
+
     title: str = Field(..., min_length=1, max_length=200)
     platform_hints: list[str] = Field(default_factory=list)
+
+
+# =========================
+# Future Development Schemas
+# =========================
+# These schemas are reserved for future website and review-analysis features.
+# They are intentionally not attached to TrackerQueryJson at the current stage.
+# Current query_json should only contain basic game lookup data.
 
 class UserReviewInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -29,6 +41,7 @@ class UserReviewInput(BaseModel):
     rating: float | None = Field(default=None, ge=0, le=5)
     review_text: str | None = Field(default=None)
     is_recommended: StrictBool | None = Field(default=None)
+
 
 class ReviewFilters(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -39,6 +52,7 @@ class ReviewFilters(BaseModel):
     min_playtime_at_review_minutes: int = Field(default=0, ge=0)
     sort_by: str = Field(default="weighted_vote_score", max_length=100)
 
+
 class AnalysisRules(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -48,21 +62,20 @@ class AnalysisRules(BaseModel):
     detect_auto_play_or_lack_of_control: StrictBool = Field(default=True)
     compare_media_and_player_reviews: StrictBool = Field(default=True)
     do_not_use_media_score_as_main_score: StrictBool = Field(default=True)
-
 class TrackerQueryJson(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     target_game: TargetGameQuery | None = Field(
         default=None,
-        description="主要追蹤遊戲。新格式建議使用此欄位。"
+        description="Main game target for tracking. Prefer this field for new tracker query data."
     )
     sources_to_check: list[str] = Field(default_factory=list)
-    regions: list[str] = Field(default_factory=list, description="Legacy field. Kept for backward compatibility and not used as a primary matching condition.")
+    regions: list[str] = Field(
+        default_factory=list,
+        description="Legacy field. Kept for backward compatibility and not used as a primary matching condition."
+    )
     genres: list[str] = Field(default_factory=list)
     platforms: list[str] = Field(default_factory=list)
-    user_review: UserReviewInput | None = Field(default=None)
-    review_filters: ReviewFilters = Field(default_factory=ReviewFilters)
-    analysis_rules: AnalysisRules = Field(default_factory=AnalysisRules)
 
     # legacy-compatible fields
     games: list[str] = Field(
@@ -110,12 +123,6 @@ class TrackerCreate(BaseModel):
                     ],
                     "genres": ["Adventure", "Indie", "Narrative"],
                     "platforms": ["PC", "Steam", "Xbox"],
-                    "user_review": {
-                        "username": "player01",
-                        "rating": 3.5,
-                        "review_text": "我覺得這款遊戲的音樂、美術和演出都不錯，但實際操作內容偏少，很多段落比較像互動電影。",
-                        "is_recommended": False
-                    }
                 }
             }
         }

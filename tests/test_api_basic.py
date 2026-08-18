@@ -156,24 +156,17 @@ class TestApiBasic(unittest.TestCase):
         return data
 
     # 建立一份合法的 query_json 測試資料。
-    # overrides 可以故意覆蓋某個欄位，例如 regions="japan"，用來測錯誤型別。
+    # overrides 可以故意覆蓋某個欄位，例如 platforms="PC"，用來測錯誤型別。
     def _build_query_json(self, **overrides):
         query_json = {
-            "target_game": {
-                "title": "Elden Ring",
-                "platform_hints": ["PC", "PlayStation", "Xbox"]
-            },
-            "sources_to_check": ["mock"],
-            "regions": ["japan"],
-            "genres": ["Action RPG"],
-            "platforms": ["PC", "Xbox"],
-            "user_review": {
-                "username": "pytest_user",
-                "rating": 4.5,
-                "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色，但新手一開始會比較容易挫折。",
-                "is_recommended": True,
+                "target_game": {
+                    "title": "Elden Ring",
+                    "platform_hints": ["PC", "PlayStation", "Xbox"]
+                },
+                "sources_to_check": ["mock"],
+                "genres": ["Action RPG"],
+                "platforms": ["PC", "Xbox"],
             }
-        }
 
         query_json.update(overrides)
 
@@ -300,7 +293,7 @@ class TestApiBasic(unittest.TestCase):
         created_query_json = created_data.get("query_json")
         assert isinstance(created_query_json, dict)
         assert created_query_json["target_game"]["title"] == "Elden Ring"
-        assert "user_review" in created_query_json
+        assert "user_review" not in created_query_json
 
         list_response = self.client.get("/v1/trackers")
         self._assert_list_response(list_response)
@@ -357,12 +350,6 @@ class TestApiBasic(unittest.TestCase):
                 "sources_to_check": ["mock"],
                 "genres": ["Action Roguelike"],
                 "platforms": ["PC"],
-                "user_review": {
-                    "username": "pytest_user",
-                    "rating": 4.5,
-                    "review_text": "這款遊戲的地圖探索、戰鬥節奏和 Boss 設計都很有特色，但新手一開始會比較容易挫折。",
-                    "is_recommended": True,
-                }
             }
         }
 
@@ -381,7 +368,7 @@ class TestApiBasic(unittest.TestCase):
 
         assert isinstance(query_json, dict)
         assert query_json["target_game"]["title"] == "Hades II"
-        assert "user_review" in query_json
+        assert "user_review" not in query_json
 
     # =========================
     # Tracker Run Flow Tests
@@ -404,7 +391,8 @@ class TestApiBasic(unittest.TestCase):
             {
                 "name": "Tracker runs endpoint",
                 "path": "/v1/trackers/{0}/runs".format(tracker_id),
-                "required_keys": ["id", "tracker_id", "status", "started_at", "executed_at"],
+                "required_keys": ["id", "tracker_id", "status", "check_time"],
+                "excluded_keys": ["started_at", "ended_at", "executed_at"],
             },
             {
                 "name": "Tracker games endpoint",
@@ -415,7 +403,8 @@ class TestApiBasic(unittest.TestCase):
             {
                 "name": "Dashboard recent runs",
                 "path": "/v1/dashboard/recent-runs",
-                "required_keys": ["id", "tracker_id", "status", "executed_at"],
+                "required_keys": ["id", "tracker_id", "status", "check_time"],
+                "excluded_keys": ["started_at", "ended_at", "executed_at"],
             },
             {
                 "name": "Dashboard recent games",
@@ -457,9 +446,10 @@ class TestApiBasic(unittest.TestCase):
         latest_run = summary_data.get("latest_run")
 
         assert latest_run is not None
-        assert "started_at" in latest_run
-        assert "executed_at" in latest_run
-        assert latest_run["executed_at"] == latest_run["started_at"]
+        assert "check_time" in latest_run
+        assert "started_at" not in latest_run
+        assert "ended_at" not in latest_run
+        assert "executed_at" not in latest_run
 
         query_json = summary_data.get("query_json")
 
@@ -474,7 +464,8 @@ class TestApiBasic(unittest.TestCase):
     # 測 Dashboard API 的基本回應格式。
     # summary 是 object；active-trackers 是 list，兩者用同一個 table-driven test 管理。
     def test_dashboard_endpoints_return_expected_shape(self):
-        self._create_tracker("Pytest Active Tracker")
+        active_tracker_id, _ = self._create_tracker("Pytest Active Tracker")
+        self._run_tracker_once(active_tracker_id)
 
         endpoint_cases = [
             {
@@ -487,6 +478,7 @@ class TestApiBasic(unittest.TestCase):
                     "active_tracker_count",
                     "game_count",
                     "run_count",
+                    "latest_run",
                 ],
             },
             {
@@ -510,6 +502,15 @@ class TestApiBasic(unittest.TestCase):
                     assert isinstance(data, dict)
                     for key in case["required_keys"]:
                         assert key in data
+
+                    if case["name"] == "Dashboard summary":
+                        latest_run = data.get("latest_run")
+
+                        assert latest_run is not None
+                        assert "check_time" in latest_run
+                        assert "started_at" not in latest_run
+                        assert "ended_at" not in latest_run
+                        assert "executed_at" not in latest_run
 
                 if case["response_type"] == "list":
                     assert isinstance(data, list)

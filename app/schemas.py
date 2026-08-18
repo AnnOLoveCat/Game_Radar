@@ -185,14 +185,8 @@ class RunResult(BaseModel):
 class RunOut(BaseModel):
     id: int
     tracker_id: int
-    started_at: datetime = Field(
-        ...,
-        description="Execution start time. Kept for technical tracking."
-    )
-    ended_at: datetime | None = Field(
-        default=None,
-        description="Execution end time. Kept for technical tracking."
-    )
+    started_at: datetime = Field(exclude=True)
+    ended_at: datetime | None = Field(default=None, exclude=True)
     status: str
     inserted_games: int
     matched_games: int
@@ -200,7 +194,7 @@ class RunOut(BaseModel):
 
     @computed_field
     @property
-    def executed_at(self) -> datetime:
+    def check_time(self) -> datetime:
         return self.started_at
 
     model_config = ConfigDict(from_attributes=True)
@@ -209,21 +203,15 @@ class RunOut(BaseModel):
 class LatestRunSummary(BaseModel):
     id: int
     status: str
-    started_at: datetime = Field(
-        ...,
-        description="Execution start time. Kept for technical tracking."
-    )
-    ended_at: datetime | None = Field(
-        default=None,
-        description="Execution end time. Kept for technical tracking."
-    )
+    started_at: datetime = Field(exclude=True)
+    ended_at: datetime | None = Field(default=None, exclude=True)
     inserted_games: int
     matched_games: int
     error_message: str | None = None
 
     @computed_field
     @property
-    def executed_at(self) -> datetime:
+    def check_time(self) -> datetime:
         return self.started_at
 
     model_config = ConfigDict(from_attributes=True)

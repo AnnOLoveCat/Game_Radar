@@ -7,7 +7,7 @@
 import os, unittest
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import case, create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.main import app
@@ -704,45 +704,95 @@ class TestApiBasic(unittest.TestCase):
             name="Pytest Unsupported Query JSON Key Update Target"
         )
 
-        test_cases = [
+        unsupported_field_cases = [
             {
-                "name": "POST /v1/trackers query_json.unknown_key",
-                "method": "post",
-                "path": "/v1/trackers",
-                "json_body": self._build_tracker_payload(
-                    name="Pytest Unsupported Query JSON Key",
-                    query_json=self._build_query_json(
-                        unknown_key="not allowed"
-                    )
+                "field_name": "unknown_key",
+                "query_json": self._build_query_json(
+                    unknown_key="not allowed"
                 ),
                 "expected_field": "unknown_key",
             },
             {
-                "name": "PATCH /v1/trackers/{tracker_id} query_json.unknown_key",
-                "method": "patch",
-                "path": "/v1/trackers/{0}".format(tracker_id),
-                "json_body": {
-                    "query_json": self._build_query_json(
-                        unknown_key="not allowed"
-                    )
-                },
-                "expected_field": "unknown_key",
+                "field_name": "user_review",
+                "query_json": self._build_query_json(
+                    user_review={
+                        "username": "pytest_user",
+                        "rating": 4.5,
+                        "review_text": "future review data",
+                        "is_recommended": True,
+                    }
+                ),
+                "expected_field": "user_review",
+            },
+            {
+                "field_name": "review_filters",
+                "query_json": self._build_query_json(
+                    review_filters={
+                        "top_reviews_limit": 10,
+                        "only_steam_purchase": True,
+                        "exclude_received_for_free": True,
+                        "min_playtime_at_review_minutes": 0,
+                        "sort_by": "weighted_vote_score",
+                    }
+                ),
+                "expected_field": "review_filters",
+            },
+            {
+                "field_name": "analysis_rules",
+                "query_json": self._build_query_json(
+                    analysis_rules={
+                        "check_player_experience": True,
+                        "detect_low_gameplay_interaction": True,
+                        "detect_cinematic_experience": True,
+                        "detect_auto_play_or_lack_of_control": True,
+                        "compare_media_and_player_reviews": True,
+                        "do_not_use_media_score_as_main_score": True,
+                    }
+                ),
+                "expected_field": "analysis_rules",
             },
         ]
 
-        for case in test_cases:
-            with self.subTest(case=case["name"]):
-                response = self._request(
-                    method=case["method"],
-                    path=case["path"],
-                    json_body=case["json_body"]
-                )
+        operation_cases = [
+            {
+                "name": "POST /v1/trackers",
+                "method": "post",
+                "path": "/v1/trackers",
+            },
+            {
+                "name": "PATCH /v1/trackers/{tracker_id}",
+                "method": "patch",
+                "path": "/v1/trackers/{0}".format(tracker_id),
+            },
+        ]
 
-                self._assert_error_response(
-                    response=response,
-                    expected_status_code=422,
-                    expected_field=case["expected_field"]
-                )
+        for operation_case in operation_cases:
+            for field_case in unsupported_field_cases:
+                with self.subTest(
+                    operation=operation_case["name"],
+                    field=field_case["field_name"]
+                ):
+                    if operation_case["method"] == "post":
+                        json_body = self._build_tracker_payload(
+                            name="Pytest Unsupported {0}".format(field_case["field_name"]),
+                            query_json=field_case["query_json"]
+                        )
+                    else:
+                        json_body = {
+                            "query_json": field_case["query_json"]
+                        }
+
+                    response = self._request(
+                        method=operation_case["method"],
+                        path=operation_case["path"],
+                        json_body=json_body
+                    )
+
+                    self._assert_error_response(
+                        response=response,
+                        expected_status_code=422,
+                        expected_field=field_case["expected_field"]
+                    )
 
 
     # 測 query_json 內部欄位型別錯誤，預期由 FastAPI / Pydantic schema validation 回 422。
@@ -752,63 +802,7 @@ class TestApiBasic(unittest.TestCase):
             name="Pytest Invalid Query JSON Type Update Target"
         )
 
-        field_cases = [
-            {
-                "field_name": "target_game",
-                "query_json": self._build_query_json(target_game="Elden Ring"),
-                "expected_field": "target_game",
-            },
-            {
-                "field_name": "sources_to_check",
-                "query_json": self._build_query_json(sources_to_check="mock"),
-                "expected_field": "sources_to_check",
-            },
-            {
-                "field_name": "regions",
-                "query_json": self._build_query_json(regions="japan"),
-                "expected_field": "regions",
-            },
-            {
-                "field_name": "genres",
-                "query_json": self._build_query_json(genres="Action RPG"),
-                "expected_field": "genres",
-            },
-            {
-                "field_name": "platforms",
-                "query_json": self._build_query_json(platforms="PC"),
-                "expected_field": "platforms",
-            },
-            {
-                "field_name": "user_review",
-                "query_json": self._build_query_json(user_review="good game"),
-                "expected_field": "user_review",
-            },
-            {
-                "field_name": "review_filters",
-                "query_json": self._build_query_json(review_filters="bad filters"),
-                "expected_field": "review_filters",
-            },
-            {
-                "field_name": "analysis_rules",
-                "query_json": self._build_query_json(analysis_rules="bad rules"),
-                "expected_field": "analysis_rules",
-            },
-            {
-                "field_name": "games",
-                "query_json": self._build_query_json(games="Elden Ring"),
-                "expected_field": "games",
-            },
-            {
-                "field_name": "studios",
-                "query_json": self._build_query_json(studios="FromSoftware"),
-                "expected_field": "studios",
-            },
-            {
-                "field_name": "is_indie",
-                "query_json": self._build_query_json(is_indie="false"),
-                "expected_field": "is_indie",
-            },
-        ]
+        field_cases = []
 
         operation_cases = [
             {

@@ -30,9 +30,6 @@ def validate_tracker_query_json(query: dict):
         "regions",
         "genres",
         "platforms",
-        "user_review",
-        "review_filters",
-        "analysis_rules",
 
         # legacy-compatible fields
         "games",
